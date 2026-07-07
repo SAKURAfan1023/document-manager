@@ -2,15 +2,26 @@ import { createReadStream, existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
-import { DEFAULT_LIBRARY_DIR, resolveLibraryFile, scanLibrary } from "./library.mjs";
+import {
+  DEFAULT_META_PATH,
+  DEFAULT_LIBRARY_DIR,
+  createLibraryIndexState,
+  getLibraryErrorStatus,
+  resolveLibraryFile,
+  scanLibrary,
+  uploadLibraryFiles,
+  watchLibraryChanges
+} from "./library.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST_DIR = path.join(ROOT_DIR, "dist");
 const PORT = Number(process.env.PORT || 5173);
 const HOST = process.env.HOST || "127.0.0.1";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const libraryState = createLibraryIndexState();
 
 const MIME_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -48,6 +59,44 @@ function sendPlain(res, status, message) {
   res.end(message);
 }
 
+function requestHeaders(headers) {
+  const result = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        result.append(key, item);
+      }
+    } else if (value !== undefined) {
+      result.set(key, value);
+    }
+  }
+  return result;
+}
+
+async function readUploadForm(req, requestUrl) {
+  const request = new Request(requestUrl.href, {
+    method: req.method,
+    headers: requestHeaders(req.headers),
+    body: Readable.toWeb(req),
+    duplex: "half"
+  });
+  const formData = await request.formData();
+  const targetPath = String(formData.get("targetPath") ?? "");
+  const files = [];
+
+  for (const value of formData.getAll("files")) {
+    if (!value || typeof value !== "object" || typeof value.arrayBuffer !== "function") {
+      continue;
+    }
+    files.push({
+      name: value.name || "file",
+      content: Buffer.from(await value.arrayBuffer())
+    });
+  }
+
+  return { targetPath, files };
+}
+
 async function sendFile(res, absolutePath) {
   const stat = await fs.stat(absolutePath);
   if (!stat.isFile()) {
@@ -64,48 +113,79 @@ async function sendFile(res, absolutePath) {
   createReadStream(absolutePath).pipe(res);
 }
 
-async function handleApi(req, res) {
-  const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
+export function createApiHandler(options = {}) {
+  const libraryDir = options.libraryDir ?? DEFAULT_LIBRARY_DIR;
+  const metaPath = options.metaPath ?? DEFAULT_META_PATH;
+  const state = options.libraryState ?? createLibraryIndexState();
 
-  if (requestUrl.pathname === "/api/health") {
-    sendJson(res, 200, { ok: true });
-    return true;
-  }
+  return async function handleApi(req, res) {
+    const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
 
-  if (requestUrl.pathname === "/api/library") {
-    try {
-      sendJson(res, 200, await scanLibrary());
-    } catch (error) {
-      sendJson(res, 500, {
-        error: "LIBRARY_SCAN_FAILED",
-        message: error instanceof Error ? error.message : "Unknown scan error"
-      });
-    }
-    return true;
-  }
-
-  if (requestUrl.pathname.startsWith("/files/")) {
-    const relativePath = requestUrl.pathname.slice("/files/".length);
-    const absolutePath = resolveLibraryFile(relativePath, DEFAULT_LIBRARY_DIR);
-    if (!absolutePath) {
-      sendPlain(res, 403, "Forbidden");
+    if (requestUrl.pathname === "/api/health") {
+      sendJson(res, 200, { ok: true });
       return true;
     }
 
-    try {
-      await sendFile(res, absolutePath);
-    } catch (error) {
-      if (error && error.code === "ENOENT") {
-        sendPlain(res, 404, "File not found");
+    if (requestUrl.pathname === "/api/library/status") {
+      sendJson(res, 200, state.getStatus());
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library") {
+      try {
+        const scanVersion = state.getStatus().version;
+        const library = await scanLibrary({ libraryDir, metaPath });
+        const status = state.markScanned(scanVersion);
+        sendJson(res, 200, { ...library, version: status.version });
+      } catch (error) {
+        sendJson(res, 500, {
+          error: "LIBRARY_SCAN_FAILED",
+          message: error instanceof Error ? error.message : "Unknown scan error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/upload" && req.method === "POST") {
+      try {
+        const form = await readUploadForm(req, requestUrl);
+        const result = await uploadLibraryFiles({ ...form, libraryDir });
+        const status = state.markChanged();
+        sendJson(res, 200, { ...result, version: status.version });
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_UPLOAD_FAILED",
+          message: error instanceof Error ? error.message : "Unknown upload error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname.startsWith("/files/")) {
+      const relativePath = requestUrl.pathname.slice("/files/".length);
+      const absolutePath = resolveLibraryFile(relativePath, libraryDir);
+      if (!absolutePath) {
+        sendPlain(res, 403, "Forbidden");
         return true;
       }
-      sendPlain(res, 500, "Unable to read file");
-    }
-    return true;
-  }
 
-  return false;
+      try {
+        await sendFile(res, absolutePath);
+      } catch (error) {
+        if (error && error.code === "ENOENT") {
+          sendPlain(res, 404, "File not found");
+          return true;
+        }
+        sendPlain(res, 500, "Unable to read file");
+      }
+      return true;
+    }
+
+    return false;
+  };
 }
+
+export const handleApi = createApiHandler({ libraryState });
 
 async function serveProduction(req, res) {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -123,6 +203,12 @@ async function serveProduction(req, res) {
 }
 
 async function start() {
+  await watchLibraryChanges({
+    onChange: () => {
+      libraryState.markChanged();
+    }
+  });
+
   const vite = IS_PRODUCTION
     ? null
     : await createViteServer({
@@ -154,4 +240,6 @@ async function start() {
   });
 }
 
-start();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  start();
+}

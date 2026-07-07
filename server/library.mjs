@@ -1,10 +1,11 @@
+import { watch } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const DEFAULT_LIBRARY_DIR = path.join(ROOT_DIR, "library");
-const DEFAULT_META_PATH = path.join(ROOT_DIR, "library.meta.json");
+export const DEFAULT_META_PATH = path.join(ROOT_DIR, "library.meta.json");
 
 const KIND_BY_EXTENSION = new Map([
   [".html", "html"],
@@ -42,6 +43,43 @@ function normalizeRelativePath(value) {
 function titleFromFileName(fileName) {
   const parsed = path.parse(fileName);
   return parsed.name.replace(/[_-]+/g, " ").trim() || fileName;
+}
+
+function getErrorStatus(error, fallback = 500) {
+  return Number.isInteger(error?.statusCode) ? error.statusCode : fallback;
+}
+
+function createLibraryError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function sanitizeUploadFileName(fileName) {
+  const baseName = path.basename(fileName || "").replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "").trim();
+  if (!baseName || baseName.startsWith(".")) {
+    return null;
+  }
+  return baseName;
+}
+
+async function resolveAvailableFilePath(targetDir, fileName) {
+  const parsed = path.parse(fileName);
+  let candidate = path.join(targetDir, fileName);
+  let index = 2;
+
+  while (true) {
+    try {
+      await fs.access(candidate);
+      candidate = path.join(targetDir, `${parsed.name} ${index}${parsed.ext}`);
+      index += 1;
+    } catch (error) {
+      if (error && error.code === "ENOENT") {
+        return candidate;
+      }
+      throw error;
+    }
+  }
 }
 
 async function readTextHead(filePath) {
@@ -231,6 +269,121 @@ export async function scanLibrary(options = {}) {
     tree: buildTree(items),
     items
   };
+}
+
+export function createLibraryIndexState() {
+  let changed = false;
+  let version = 0;
+  let changedAt = null;
+
+  const getStatus = () => ({ changed, version, changedAt });
+
+  return {
+    getStatus,
+    markChanged() {
+      changed = true;
+      version += 1;
+      changedAt = new Date().toISOString();
+      return getStatus();
+    },
+    markScanned(scanVersion) {
+      if (version === scanVersion) {
+        changed = false;
+        changedAt = null;
+      }
+      return getStatus();
+    }
+  };
+}
+
+export function resolveLibraryDirectory(relativePath = "", libraryDir = DEFAULT_LIBRARY_DIR) {
+  const normalized = String(relativePath)
+    .split("/")
+    .filter(Boolean)
+    .join(path.sep);
+  const root = path.resolve(libraryDir);
+  const absolutePath = path.resolve(root, normalized);
+  const insideRoot = absolutePath === root || absolutePath.startsWith(`${root}${path.sep}`);
+
+  if (!insideRoot) {
+    return null;
+  }
+
+  return absolutePath;
+}
+
+export async function uploadLibraryFiles(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const targetDir = resolveLibraryDirectory(options.targetPath ?? "", libraryDir);
+  const files = Array.isArray(options.files) ? options.files : [];
+
+  if (!targetDir) {
+    throw createLibraryError("上传目录不在 library 内", 403);
+  }
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const uploaded = [];
+  for (const file of files) {
+    const fileName = sanitizeUploadFileName(file?.name);
+    if (!fileName || !file?.content) {
+      continue;
+    }
+
+    const destination = await resolveAvailableFilePath(targetDir, fileName);
+    await fs.writeFile(destination, file.content);
+    const relativePath = normalizeRelativePath(path.relative(libraryDir, destination));
+    uploaded.push({
+      relativePath,
+      title: titleFromFileName(path.basename(destination))
+    });
+  }
+
+  if (!uploaded.length) {
+    throw createLibraryError("没有可上传的文件", 400);
+  }
+
+  return { uploaded };
+}
+
+export async function watchLibraryChanges(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
+  const onChange = typeof options.onChange === "function" ? options.onChange : () => {};
+  const watchers = [];
+
+  await fs.mkdir(libraryDir, { recursive: true });
+
+  const watchTarget = (target, watchOptions = {}) => {
+    try {
+      const watcher = watch(target, watchOptions, (_eventType, fileName) => {
+        if (typeof fileName === "string" && path.basename(fileName).startsWith(".")) {
+          return;
+        }
+        onChange();
+      });
+      watcher.on("error", () => {});
+      watchers.push(watcher);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (!watchTarget(libraryDir, { recursive: true })) {
+    watchTarget(libraryDir);
+  }
+  watchTarget(metaPath);
+
+  return () => {
+    for (const watcher of watchers) {
+      watcher.close();
+    }
+  };
+}
+
+export function getLibraryErrorStatus(error, fallback = 500) {
+  return getErrorStatus(error, fallback);
 }
 
 export function resolveLibraryFile(relativeUrlPath, libraryDir = DEFAULT_LIBRARY_DIR) {

@@ -26,6 +26,21 @@ export type LibraryResponse = {
   root: string;
   tree: LibraryNode;
   items: LibraryItem[];
+  version?: number;
+};
+
+export type LibraryStatusResponse = {
+  changed: boolean;
+  version: number;
+  changedAt: string | null;
+};
+
+export type LibraryUploadResponse = {
+  uploaded: Array<{
+    relativePath: string;
+    title: string;
+  }>;
+  version: number;
 };
 
 export type SortMode = "library" | "recent" | "title" | "type";
