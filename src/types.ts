@@ -43,4 +43,20 @@ export type LibraryUploadResponse = {
   version: number;
 };
 
+export type LibraryMoveResponse = {
+  moved: {
+    relativePath: string;
+    title: string;
+  };
+  changed: boolean;
+  version: number;
+};
+
+export type LibraryRevealResponse = {
+  revealed: {
+    relativePath: string;
+    kind: "file" | "folder";
+  };
+};
+
 export type SortMode = "library" | "recent" | "title" | "type";

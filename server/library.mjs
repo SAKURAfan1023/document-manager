@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -123,6 +124,11 @@ async function readMeta(metaPath) {
     }
     throw error;
   }
+}
+
+async function writeMeta(metaPath, meta) {
+  await fs.mkdir(path.dirname(metaPath), { recursive: true });
+  await fs.writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`);
 }
 
 function applyMeta(item, metaEntry) {
@@ -312,6 +318,45 @@ export function resolveLibraryDirectory(relativePath = "", libraryDir = DEFAULT_
   return absolutePath;
 }
 
+function resolveLibraryEntry(relativePath = "", libraryDir = DEFAULT_LIBRARY_DIR) {
+  const normalized = String(relativePath)
+    .split("/")
+    .filter(Boolean)
+    .join(path.sep);
+  const root = path.resolve(libraryDir);
+  const absolutePath = path.resolve(root, normalized);
+  const insideRoot = absolutePath === root || absolutePath.startsWith(`${root}${path.sep}`);
+
+  if (!insideRoot) {
+    return null;
+  }
+
+  return absolutePath;
+}
+
+function revealInFileManager(absolutePath, kind) {
+  const showFolder = kind === "folder";
+  let command;
+  let args;
+
+  if (process.platform === "darwin") {
+    command = "open";
+    args = showFolder ? [absolutePath] : ["-R", absolutePath];
+  } else if (process.platform === "win32") {
+    command = "explorer.exe";
+    args = showFolder ? [absolutePath] : [`/select,${absolutePath}`];
+  } else {
+    command = "xdg-open";
+    args = [showFolder ? absolutePath : path.dirname(absolutePath)];
+  }
+
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
+}
+
 export async function uploadLibraryFiles(options = {}) {
   const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
   const targetDir = resolveLibraryDirectory(options.targetPath ?? "", libraryDir);
@@ -344,6 +389,117 @@ export async function uploadLibraryFiles(options = {}) {
   }
 
   return { uploaded };
+}
+
+export async function revealLibraryPath(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const kind = options.kind === "folder" ? "folder" : "file";
+  const absolutePath = kind === "folder"
+    ? resolveLibraryDirectory(options.relativePath ?? "", libraryDir)
+    : resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+
+  if (!absolutePath) {
+    throw createLibraryError("打开路径不在 library 内", 403);
+  }
+
+  let stat;
+  try {
+    stat = await fs.stat(absolutePath);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError(kind === "folder" ? "文件夹不存在" : "文件不存在", 404);
+    }
+    throw error;
+  }
+
+  if (kind === "folder" && !stat.isDirectory()) {
+    throw createLibraryError("目标不是文件夹", 400);
+  }
+  if (kind === "file" && !stat.isFile()) {
+    throw createLibraryError("目标不是文件", 400);
+  }
+
+  const reveal = typeof options.reveal === "function" ? options.reveal : revealInFileManager;
+  reveal(absolutePath, kind);
+
+  return {
+    revealed: {
+      relativePath: normalizeRelativePath(path.relative(libraryDir, absolutePath)),
+      kind
+    }
+  };
+}
+
+export async function moveLibraryFile(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
+  const sourceFile = resolveLibraryEntry(options.sourcePath ?? "", libraryDir);
+  const targetDir = resolveLibraryDirectory(options.targetPath ?? "", libraryDir);
+
+  if (!sourceFile || !targetDir) {
+    throw createLibraryError("移动路径不在 library 内", 403);
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.stat(sourceFile);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("源文件不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!sourceStat.isFile()) {
+    throw createLibraryError("只能移动文件", 400);
+  }
+
+  let targetStat;
+  try {
+    targetStat = await fs.stat(targetDir);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("目标目录不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!targetStat.isDirectory()) {
+    throw createLibraryError("目标不是目录", 400);
+  }
+
+  const sourceDir = path.dirname(sourceFile);
+  const sourceRelativePath = normalizeRelativePath(path.relative(libraryDir, sourceFile));
+  if (sourceDir === targetDir) {
+    return {
+      moved: {
+        relativePath: sourceRelativePath,
+        title: titleFromFileName(path.basename(sourceFile))
+      },
+      changed: false
+    };
+  }
+
+  const destination = await resolveAvailableFilePath(targetDir, path.basename(sourceFile));
+  await fs.rename(sourceFile, destination);
+
+  const movedRelativePath = normalizeRelativePath(path.relative(libraryDir, destination));
+  const meta = await readMeta(metaPath);
+  const metaEntry = meta.items?.[sourceRelativePath];
+  if (metaEntry) {
+    meta.items = meta.items && typeof meta.items === "object" ? meta.items : {};
+    meta.items[movedRelativePath] = metaEntry;
+    delete meta.items[sourceRelativePath];
+    await writeMeta(metaPath, meta);
+  }
+
+  return {
+    moved: {
+      relativePath: movedRelativePath,
+      title: titleFromFileName(path.basename(destination))
+    },
+    changed: true
+  };
 }
 
 export async function watchLibraryChanges(options = {}) {

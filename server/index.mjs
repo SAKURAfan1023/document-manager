@@ -10,6 +10,8 @@ import {
   DEFAULT_LIBRARY_DIR,
   createLibraryIndexState,
   getLibraryErrorStatus,
+  moveLibraryFile,
+  revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
   uploadLibraryFiles,
@@ -97,6 +99,16 @@ async function readUploadForm(req, requestUrl) {
   return { targetPath, files };
 }
 
+async function readJsonBody(req, requestUrl) {
+  const request = new Request(requestUrl.href, {
+    method: req.method,
+    headers: requestHeaders(req.headers),
+    body: Readable.toWeb(req),
+    duplex: "half"
+  });
+  return await request.json();
+}
+
 async function sendFile(res, absolutePath) {
   const stat = await fs.stat(absolutePath);
   if (!stat.isFile()) {
@@ -117,6 +129,7 @@ export function createApiHandler(options = {}) {
   const libraryDir = options.libraryDir ?? DEFAULT_LIBRARY_DIR;
   const metaPath = options.metaPath ?? DEFAULT_META_PATH;
   const state = options.libraryState ?? createLibraryIndexState();
+  const revealPath = options.revealLibraryPath ?? revealLibraryPath;
 
   return async function handleApi(req, res) {
     const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -156,6 +169,35 @@ export function createApiHandler(options = {}) {
         sendJson(res, getLibraryErrorStatus(error), {
           error: "LIBRARY_UPLOAD_FAILED",
           message: error instanceof Error ? error.message : "Unknown upload error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/move" && req.method === "POST") {
+      try {
+        const payload = await readJsonBody(req, requestUrl);
+        const result = await moveLibraryFile({ ...payload, libraryDir, metaPath });
+        const status = result.changed ? state.markChanged() : state.getStatus();
+        sendJson(res, 200, { ...result, version: status.version });
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_MOVE_FAILED",
+          message: error instanceof Error ? error.message : "Unknown move error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/reveal" && req.method === "POST") {
+      try {
+        const payload = await readJsonBody(req, requestUrl);
+        const result = await revealPath({ ...payload, libraryDir });
+        sendJson(res, 200, result);
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_REVEAL_FAILED",
+          message: error instanceof Error ? error.message : "Unknown reveal error"
         });
       }
       return true;

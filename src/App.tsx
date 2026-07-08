@@ -6,12 +6,19 @@ import {
   ChevronDown,
   ExternalLink,
   File,
+  FileArchive,
+  FileBadge,
+  FileCode,
+  FileCode2,
+  FileImage,
+  FileSpreadsheet,
   FileText,
+  FileType2,
   Folder,
   Home,
-  Image,
   ListFilter,
   Menu,
+  Presentation,
   RefreshCw,
   Search,
   Upload,
@@ -34,11 +41,17 @@ import {
   useSyncExternalStore
 } from "react";
 import type { Transition } from "framer-motion";
-import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  DragEvent as ReactDragEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent
+} from "react";
 import type {
   LibraryItem,
   LibraryKind,
+  LibraryMoveResponse,
   LibraryNode,
+  LibraryRevealResponse,
   LibraryResponse,
   LibraryStatusResponse,
   LibraryUploadResponse,
@@ -53,17 +66,41 @@ type TopicOption = {
 };
 
 type UploadState = {
-  status: "idle" | "dragging" | "uploading" | "success" | "error";
+  status: "idle" | "dragging" | "uploading" | "moving" | "success" | "error";
   targetPath: string;
   message: string;
 };
 
 type TreeDisplayMode = "folders" | "all";
+type TreeDragAction = "upload" | "move";
+
+type DragTargetState = {
+  path: string;
+  action: TreeDragAction;
+};
+
+type TreeFileDragPayload = {
+  relativePath: string;
+};
+
+type SidebarResizeState = {
+  pointerId: number;
+  startWidth: number;
+  startX: number;
+};
+
+type TreeCollapseStorage = {
+  collapsed: Set<string>;
+  hasStoredState: boolean;
+  known: Set<string>;
+};
 
 type SelectOption<TValue extends string> = {
   value: TValue;
   label: string;
 };
+
+type FileVisualKind = "archive" | "html" | "image" | "markdown" | "other" | "pdf" | "presentation" | "sheet" | "text" | "word";
 
 type HoverTooltipContextValue = {
   hide: () => void;
@@ -98,7 +135,16 @@ const SORT_OPTIONS: Array<SelectOption<SortMode>> = [
 ];
 const EMPTY_ITEMS: LibraryItem[] = [];
 const EMPTY_TOPICS: TopicOption[] = [];
+const TREE_FILE_DRAG_TYPE = "application/x-document-gallery-file+json";
 const LOCATION_CHANGE_EVENT = "document-gallery-location-change";
+const WPS_TEXT_EXTENSIONS = new Set(["doc", "docx", "dot", "dotx", "rtf", "wps", "wpt"]);
+const WPS_SHEET_EXTENSIONS = new Set(["et", "ett", "xls", "xlsx", "xlsm", "xlt", "xltx"]);
+const WPS_PRESENTATION_EXTENSIONS = new Set(["dps", "dpt", "pot", "potx", "pps", "ppsx", "ppt", "pptx"]);
+const ARCHIVE_EXTENSIONS = new Set(["7z", "bz2", "gz", "rar", "tar", "tgz", "xz", "zip"]);
+const IMAGE_EXTENSIONS = new Set(["avif", "bmp", "gif", "heic", "ico", "jpeg", "jpg", "pic", "png", "svg", "tif", "tiff", "webp"]);
+const SIDEBAR_DEFAULT_WIDTH = 260;
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 480;
 const LIBRARY_REFRESH_INTERVAL_MS = 30_000;
 const DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   month: "2-digit",
@@ -107,6 +153,8 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit"
 });
 const TEXT_CONTENT_CACHE = new Map<string, Promise<string>>();
+const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
+const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
 const READER_FLOAT_SIZE = 56;
 const READER_PANEL_HEIGHT = 76;
@@ -227,6 +275,106 @@ function getViewportSize(): ViewportSize {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function areSetsEqual<TValue>(first: Set<TValue>, second: Set<TValue>) {
+  if (first.size !== second.size) {
+    return false;
+  }
+  for (const value of first) {
+    if (!second.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function collectFolderPaths(node: LibraryNode) {
+  const paths: string[] = [];
+  const visit = (current: LibraryNode) => {
+    if (current.path) {
+      paths.push(current.path);
+    }
+    for (const child of current.children) {
+      visit(child);
+    }
+  };
+  visit(node);
+  return paths;
+}
+
+function readTreeCollapseStorage(): TreeCollapseStorage {
+  if (typeof window === "undefined") {
+    return { collapsed: new Set(), hasStoredState: false, known: new Set() };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TREE_COLLAPSE_STORAGE_KEY);
+    if (!raw) {
+      return { collapsed: new Set(), hasStoredState: false, known: new Set() };
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const collapsed = new Set(parsed.filter((path): path is string => typeof path === "string"));
+      return { collapsed, hasStoredState: true, known: new Set(collapsed) };
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return { collapsed: new Set(), hasStoredState: false, known: new Set() };
+    }
+    const value = parsed as { collapsed?: unknown; known?: unknown };
+    const collapsed = Array.isArray(value.collapsed)
+      ? new Set(value.collapsed.filter((path): path is string => typeof path === "string"))
+      : new Set<string>();
+    const known = Array.isArray(value.known)
+      ? new Set(value.known.filter((path): path is string => typeof path === "string"))
+      : new Set(collapsed);
+    return { collapsed, hasStoredState: true, known };
+  } catch {
+    return { collapsed: new Set(), hasStoredState: false, known: new Set() };
+  }
+}
+
+function writeTreeCollapseStorage(collapsed: Set<string>, known: Set<string>) {
+  try {
+    window.localStorage.setItem(TREE_COLLAPSE_STORAGE_KEY, JSON.stringify({
+      collapsed: Array.from(collapsed),
+      known: Array.from(known)
+    }));
+  } catch {
+    // Local storage can be unavailable in private windows; the tree still works in-memory.
+  }
+}
+
+function readStoredSidebarWidth() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const width = Number.parseFloat(raw);
+    return Number.isFinite(width) ? clamp(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSidebarWidth(width: number) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      SIDEBAR_WIDTH_STORAGE_KEY,
+      String(clamp(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH))
+    );
+  } catch {
+    // Width resizing still works for the current session if storage is unavailable.
+  }
 }
 
 function getReaderPanelSize(viewport: ViewportSize) {
@@ -361,24 +509,185 @@ function matchesQuery(item: LibraryItem, query: string) {
     .includes(normalized);
 }
 
-function kindIcon(kind: LibraryKind) {
-  if (kind === "image") {
-    return <Image aria-hidden="true" />;
+function normalizedExtension(item: LibraryItem) {
+  return item.extension.trim().toLowerCase();
+}
+
+function fileDisplayLabel(item: LibraryItem) {
+  const extension = normalizedExtension(item);
+  if (WPS_TEXT_EXTENSIONS.has(extension)) {
+    return "WPS文字";
   }
-  if (kind === "markdown" || kind === "text" || kind === "pdf") {
+  if (WPS_SHEET_EXTENSIONS.has(extension)) {
+    return "WPS表格";
+  }
+  if (WPS_PRESENTATION_EXTENSIONS.has(extension)) {
+    return "WPS演示";
+  }
+  if (ARCHIVE_EXTENSIONS.has(extension)) {
+    return "压缩包";
+  }
+  if (item.kind === "pdf") {
+    return "PDF";
+  }
+  if (IMAGE_EXTENSIONS.has(extension) || item.kind === "image") {
+    return "图片";
+  }
+  if (item.kind === "html") {
+    return "HTML";
+  }
+  return KIND_LABELS[item.kind];
+}
+
+function fileVisualKind(item: LibraryItem): FileVisualKind {
+  const extension = normalizedExtension(item);
+  if (WPS_TEXT_EXTENSIONS.has(extension)) {
+    return "word";
+  }
+  if (WPS_SHEET_EXTENSIONS.has(extension)) {
+    return "sheet";
+  }
+  if (WPS_PRESENTATION_EXTENSIONS.has(extension)) {
+    return "presentation";
+  }
+  if (ARCHIVE_EXTENSIONS.has(extension)) {
+    return "archive";
+  }
+  if (item.kind === "pdf") {
+    return "pdf";
+  }
+  if (IMAGE_EXTENSIONS.has(extension) || item.kind === "image") {
+    return "image";
+  }
+  if (item.kind === "html") {
+    return "html";
+  }
+  if (item.kind === "markdown") {
+    return "markdown";
+  }
+  if (item.kind === "text") {
+    return "text";
+  }
+  return "other";
+}
+
+function fileDisplayIcon(visualKind: FileVisualKind) {
+  if (visualKind === "word") {
+    return <FileType2 aria-hidden="true" />;
+  }
+  if (visualKind === "sheet") {
+    return <FileSpreadsheet aria-hidden="true" />;
+  }
+  if (visualKind === "presentation") {
+    return <Presentation aria-hidden="true" />;
+  }
+  if (visualKind === "archive") {
+    return <FileArchive aria-hidden="true" />;
+  }
+  if (visualKind === "pdf") {
+    return <FileBadge aria-hidden="true" />;
+  }
+  if (visualKind === "image") {
+    return <FileImage aria-hidden="true" />;
+  }
+  if (visualKind === "html") {
+    return <FileCode2 aria-hidden="true" />;
+  }
+  if (visualKind === "markdown") {
+    return <FileCode aria-hidden="true" />;
+  }
+  if (visualKind === "text") {
     return <FileText aria-hidden="true" />;
   }
   return <File aria-hidden="true" />;
 }
 
-function treeFileIcon(kind: LibraryKind) {
-  if (kind === "image") {
-    return <Image aria-hidden="true" />;
+function FileIcon({ className, item }: { className: string; item: LibraryItem }) {
+  const visualKind = fileVisualKind(item);
+  return (
+    <span className={className} data-file-kind={visualKind}>
+      {fileDisplayIcon(visualKind)}
+    </span>
+  );
+}
+
+function itemMimeType(item: LibraryItem) {
+  if (item.kind === "html") {
+    return "text/html";
   }
-  if (kind === "html") {
-    return <File aria-hidden="true" />;
+  if (item.kind === "pdf") {
+    return "application/pdf";
   }
-  return <FileText aria-hidden="true" />;
+  if (item.kind === "image") {
+    if (item.extension === "svg") {
+      return "image/svg+xml";
+    }
+    return `image/${item.extension === "jpg" ? "jpeg" : item.extension || "png"}`;
+  }
+  if (item.kind === "markdown") {
+    return "text/markdown";
+  }
+  if (item.kind === "text") {
+    return "text/plain";
+  }
+  return "application/octet-stream";
+}
+
+function fileNameFromRelativePath(relativePath: string) {
+  return relativePath.split("/").filter(Boolean).pop() ?? relativePath;
+}
+
+function dragTargetLabel(targetPath: string) {
+  return targetPath ? targetPath : "根目录";
+}
+
+function escapeDragHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    if (char === "&") {
+      return "&amp;";
+    }
+    if (char === "<") {
+      return "&lt;";
+    }
+    if (char === ">") {
+      return "&gt;";
+    }
+    if (char === "\"") {
+      return "&quot;";
+    }
+    return "&#39;";
+  });
+}
+
+function isTreeFileDrag(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes(TREE_FILE_DRAG_TYPE);
+}
+
+function readTreeFileDrag(dataTransfer: DataTransfer): TreeFileDragPayload | null {
+  try {
+    const raw = dataTransfer.getData(TREE_FILE_DRAG_TYPE);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<TreeFileDragPayload>;
+    return typeof parsed.relativePath === "string" && parsed.relativePath ? { relativePath: parsed.relativePath } : null;
+  } catch {
+    return null;
+  }
+}
+
+function setTreeFileDragData(event: ReactDragEvent<HTMLElement>, item: LibraryItem) {
+  const fileUrl = new URL(item.url, window.location.href).toString();
+  const fileName = fileNameFromRelativePath(item.relativePath).replace(/:/g, "_");
+  event.dataTransfer.effectAllowed = "copyMove";
+  event.dataTransfer.setData(TREE_FILE_DRAG_TYPE, JSON.stringify({ relativePath: item.relativePath }));
+  event.dataTransfer.setData("DownloadURL", `${itemMimeType(item)}:${fileName}:${fileUrl}`);
+  event.dataTransfer.setData("text/uri-list", fileUrl);
+  event.dataTransfer.setData("text/plain", fileUrl);
+  event.dataTransfer.setData(
+    "text/html",
+    `<a href="${escapeDragHtml(fileUrl)}" download="${escapeDragHtml(fileName)}">${escapeDragHtml(item.title)}</a>`
+  );
 }
 
 function hasDirectoryItems(dataTransfer: DataTransfer) {
@@ -749,6 +1058,43 @@ function useLibrary() {
     return payload as LibraryUploadResponse;
   }, [checkForChanges]);
 
+  const moveFile = useCallback(async (sourcePath: string, targetPath: string) => {
+    const response = await fetch("/api/library/move", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourcePath, targetPath })
+    });
+    const payload = await readJsonResponse<Partial<LibraryMoveResponse> & { message?: string }>(
+      response,
+      "移动接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `移动失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryMoveResponse;
+  }, [checkForChanges]);
+
+  const revealPath = useCallback(async (relativePath: string, kind: "file" | "folder") => {
+    const response = await fetch("/api/library/reveal", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath, kind })
+    });
+    const payload = await readJsonResponse<Partial<LibraryRevealResponse> & { message?: string }>(
+      response,
+      "打开位置接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `打开位置失败：${response.status}`);
+    }
+
+    return payload as LibraryRevealResponse;
+  }, []);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -774,15 +1120,15 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, refresh, uploadFiles };
+  return { library, isLoading, error, refresh, moveFile, revealPath, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, refresh, uploadFiles } = useLibrary();
+  const { library, isLoading, error, refresh, moveFile, revealPath, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
-  const [treeMode, setTreeMode] = useState<TreeDisplayMode>("folders");
+  const [treeMode, setTreeMode] = useState<TreeDisplayMode>("all");
   const [selectedTreeFilePath, setSelectedTreeFilePath] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("library");
   const selectedPath = useSyncExternalStore(subscribeSelectedPath, getSelectedPathFromLocation, () => null);
@@ -882,6 +1228,8 @@ function App() {
         onSortChange={setSortMode}
         onTopicChange={selectTopic}
         onTreeModeChange={changeTreeMode}
+        onMoveFile={moveFile}
+        onRevealPath={revealPath}
         onUploadFiles={uploadFiles}
       />
     </HoverTooltipProvider>
@@ -913,17 +1261,31 @@ type LibraryHomeProps = {
   onSortChange: (sortMode: SortMode) => void;
   onTopicChange: (topic: string) => void;
   onTreeModeChange: (mode: TreeDisplayMode) => void;
+  onMoveFile: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
+  onRevealPath: (relativePath: string, kind: "file" | "folder") => Promise<LibraryRevealResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
 
 function LibraryHome(props: LibraryHomeProps) {
+  const initialTreeCollapseRef = useRef<TreeCollapseStorage | null>(null);
+  if (initialTreeCollapseRef.current === null) {
+    initialTreeCollapseRef.current = readTreeCollapseStorage();
+  }
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragTarget, setDragTarget] = useState<string | null>(null);
+  const sidebarPanelRef = useRef<HTMLElement>(null);
+  const sidebarResizeRef = useRef<SidebarResizeState | null>(null);
+  const [dragTarget, setDragTarget] = useState<DragTargetState | null>(null);
+  const [draggedFilePath, setDraggedFilePath] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.collapsed));
+  const [knownFolderPaths, setKnownFolderPaths] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.known));
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(() => readStoredSidebarWidth());
+  const [isSidebarResizing, setIsSidebarResizing] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({
     status: "idle",
     targetPath: "",
     message: "选择或拖入文件"
   });
+  const { onMoveFile, onRevealPath, onTopicChange, onUploadFiles } = props;
   const readableCount = props.items.filter((item) => item.kind !== "other").length;
   const activeTopicName = props.topics.find((topic) => topic.path === props.activeTopic)?.name ?? "全部主题";
   const topicName = props.selectedTreeFile?.title ?? activeTopicName;
@@ -941,6 +1303,63 @@ function LibraryHome(props: LibraryHomeProps) {
     }
     return next;
   }, [props.items]);
+  const allFolderPaths = useMemo(() => props.tree ? collectFolderPaths(props.tree) : [], [props.tree]);
+  const sidebarLayoutStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (sidebarWidth === null) {
+      return undefined;
+    }
+    return { "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties;
+  }, [sidebarWidth]);
+  const visibleCollapsedFolders = useMemo(() => {
+    const next = new Set<string>();
+    const currentFolderPaths = new Set(allFolderPaths);
+    for (const path of collapsedFolders) {
+      if (currentFolderPaths.has(path)) {
+        next.add(path);
+      }
+    }
+    for (const path of allFolderPaths) {
+      if (!initialTreeCollapseRef.current?.hasStoredState || !knownFolderPaths.has(path)) {
+        next.add(path);
+      }
+    }
+    return next;
+  }, [allFolderPaths, collapsedFolders, knownFolderPaths]);
+  const allFoldersCollapsed = allFolderPaths.length > 0 && allFolderPaths.every((path) => visibleCollapsedFolders.has(path));
+
+  useEffect(() => {
+    if (!props.tree) {
+      return;
+    }
+
+    const nextKnownFolderPaths = new Set(allFolderPaths);
+    const hasStoredState = initialTreeCollapseRef.current?.hasStoredState ?? false;
+    setCollapsedFolders((current) => {
+      const next = new Set<string>();
+      for (const path of current) {
+        if (nextKnownFolderPaths.has(path)) {
+          next.add(path);
+        }
+      }
+      for (const path of allFolderPaths) {
+        if (!hasStoredState || !knownFolderPaths.has(path)) {
+          next.add(path);
+        }
+      }
+      return areSetsEqual(current, next) ? current : next;
+    });
+    setKnownFolderPaths((current) => areSetsEqual(current, nextKnownFolderPaths) ? current : nextKnownFolderPaths);
+    if (initialTreeCollapseRef.current) {
+      initialTreeCollapseRef.current.hasStoredState = true;
+    }
+  }, [allFolderPaths, knownFolderPaths, props.tree]);
+
+  useEffect(() => {
+    if (!props.tree) {
+      return;
+    }
+    writeTreeCollapseStorage(collapsedFolders, knownFolderPaths);
+  }, [collapsedFolders, knownFolderPaths, props.tree]);
 
   const uploadToTopic = useCallback(async (targetPath: string, files: FileList | File[]) => {
     const visibleFiles = visibleFilesFromList(files);
@@ -960,7 +1379,7 @@ function LibraryHome(props: LibraryHomeProps) {
     });
 
     try {
-      const result = await props.onUploadFiles(targetPath, visibleFiles);
+      const result = await onUploadFiles(targetPath, visibleFiles);
       setUploadState({
         status: "success",
         targetPath,
@@ -973,12 +1392,44 @@ function LibraryHome(props: LibraryHomeProps) {
         message: uploadError instanceof Error ? uploadError.message : "上传失败"
       });
     }
-  }, [props.onUploadFiles]);
+  }, [onUploadFiles]);
 
-  const dropFilesToTopic = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
+  const moveFileToTopic = useCallback(async (sourcePath: string, targetPath: string) => {
+    setUploadState({
+      status: "moving",
+      targetPath,
+      message: `正在移动到 ${dragTargetLabel(targetPath)}`
+    });
+
+    try {
+      const result = await onMoveFile(sourcePath, targetPath);
+      setUploadState({
+        status: "success",
+        targetPath,
+        message: result.changed ? `已移动到 ${dragTargetLabel(targetPath)}` : "文件已在此目录"
+      });
+      onTopicChange(targetPath);
+    } catch (moveError) {
+      setUploadState({
+        status: "error",
+        targetPath,
+        message: moveError instanceof Error ? moveError.message : "移动失败"
+      });
+    }
+  }, [onMoveFile, onTopicChange]);
+
+  const dropToTopic = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    const treeFile = readTreeFileDrag(event.dataTransfer);
+    const sourcePath = treeFile?.relativePath ?? draggedFilePath;
     setDragTarget(null);
+    setDraggedFilePath(null);
+
+    if (sourcePath) {
+      void moveFileToTopic(sourcePath, targetPath);
+      return;
+    }
 
     if (hasDirectoryItems(event.dataTransfer)) {
       setUploadState({
@@ -990,20 +1441,22 @@ function LibraryHome(props: LibraryHomeProps) {
     }
 
     void uploadToTopic(targetPath, event.dataTransfer.files);
-  }, [uploadToTopic]);
+  }, [draggedFilePath, moveFileToTopic, uploadToTopic]);
 
   const markDragTarget = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    setDragTarget(targetPath);
-    setUploadState((current) => current.status === "uploading"
+    const action: TreeDragAction = draggedFilePath || isTreeFileDrag(event.dataTransfer) ? "move" : "upload";
+    event.dataTransfer.dropEffect = action === "move" ? "move" : "copy";
+    setDragTarget({ path: targetPath, action });
+    setUploadState((current) => current.status === "uploading" || current.status === "moving"
       ? current
       : {
         status: "dragging",
         targetPath,
-        message: targetPath ? `添加到 ${targetPath}` : "添加到根目录"
+        message: `${action === "move" ? "移动到" : "添加到"} ${dragTargetLabel(targetPath)}`
       });
-  }, []);
+  }, [draggedFilePath]);
 
   const clearDragTarget = useCallback((event: ReactDragEvent<HTMLElement>) => {
     const relatedTarget = event.relatedTarget;
@@ -1016,8 +1469,123 @@ function LibraryHome(props: LibraryHomeProps) {
       : current);
   }, []);
 
+  const startFileDrag = useCallback((item: LibraryItem, event: ReactDragEvent<HTMLElement>) => {
+    setDraggedFilePath(item.relativePath);
+    setTreeFileDragData(event, item);
+    setUploadState({
+      status: "dragging",
+      targetPath: item.topicPath.join("/"),
+      message: "拖到目录移动，拖出窗口转发"
+    });
+  }, []);
+
+  const endFileDrag = useCallback(() => {
+    setDraggedFilePath(null);
+    setDragTarget(null);
+    setUploadState((current) => current.status === "dragging"
+      ? { status: "idle", targetPath: "", message: "选择或拖入文件" }
+      : current);
+  }, []);
+
+  const toggleFolder = useCallback((folderPath: string) => {
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folderPath)) {
+        next.delete(folderPath);
+      } else {
+        next.add(folderPath);
+      }
+      return next;
+    });
+  }, []);
+
+  const collapseAllFolders = useCallback(() => {
+    setCollapsedFolders(new Set(allFolderPaths));
+  }, [allFolderPaths]);
+
+  const revealPathInManager = useCallback((relativePath: string, kind: "file" | "folder") => {
+    void (async () => {
+      try {
+        await onRevealPath(relativePath, kind);
+      } catch (revealError) {
+        setUploadState({
+          status: "error",
+          targetPath: relativePath,
+          message: revealError instanceof Error ? revealError.message : "打开位置失败"
+        });
+      }
+    })();
+  }, [onRevealPath]);
+
+  const startSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const currentWidth = sidebarPanelRef.current?.getBoundingClientRect().width ?? SIDEBAR_DEFAULT_WIDTH;
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startWidth: currentWidth,
+      startX: event.clientX
+    };
+    setIsSidebarResizing(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, []);
+
+  const updateSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const resizeState = sidebarResizeRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    const nextWidth = resizeState.startWidth + event.clientX - resizeState.startX;
+    setSidebarWidth(clamp(nextWidth, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH));
+  }, []);
+
+  const endSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const resizeState = sidebarResizeRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (event.type !== "pointercancel") {
+      const nextWidth = clamp(
+        resizeState.startWidth + event.clientX - resizeState.startX,
+        SIDEBAR_MIN_WIDTH,
+        SIDEBAR_MAX_WIDTH
+      );
+      setSidebarWidth(nextWidth);
+      saveSidebarWidth(nextWidth);
+    }
+    sidebarResizeRef.current = null;
+    setIsSidebarResizing(false);
+  }, []);
+
+  const stepSidebarResize = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") {
+      return;
+    }
+    event.preventDefault();
+    const baseWidth = sidebarWidth ?? sidebarPanelRef.current?.getBoundingClientRect().width ?? SIDEBAR_DEFAULT_WIDTH;
+    let nextWidth = baseWidth;
+    if (event.key === "Home") {
+      nextWidth = SIDEBAR_MIN_WIDTH;
+    } else if (event.key === "End") {
+      nextWidth = SIDEBAR_MAX_WIDTH;
+    } else {
+      const delta = event.key === "ArrowLeft" ? -20 : 20;
+      nextWidth = clamp(baseWidth + delta, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+    }
+    setSidebarWidth(nextWidth);
+    saveSidebarWidth(nextWidth);
+  }, [sidebarWidth]);
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-sidebar-resizing={isSidebarResizing ? "true" : undefined}>
       <header className="global-nav">
         <div className="global-nav-inner">
           <div className="global-brand">
@@ -1046,8 +1614,12 @@ function LibraryHome(props: LibraryHomeProps) {
         </div>
       </div>
 
-      <main className="catalog-layout">
-        <aside className="sidebar-panel" aria-label="主题目录">
+      <main
+        className="catalog-layout"
+        data-sidebar-resizing={isSidebarResizing ? "true" : undefined}
+        style={sidebarLayoutStyle}
+      >
+        <aside ref={sidebarPanelRef} className="sidebar-panel" aria-label="主题目录">
           <div className="panel-heading">
             <span className="panel-heading-title">
               <Folder aria-hidden="true" />
@@ -1062,6 +1634,15 @@ function LibraryHome(props: LibraryHomeProps) {
               >
                 <Upload aria-hidden="true" />
                 添加
+              </button>
+              <button
+                className="panel-action"
+                type="button"
+                title={allFoldersCollapsed ? "所有文件夹已折叠" : "折叠所有文件夹"}
+                onClick={collapseAllFolders}
+              >
+                <ChevronDown aria-hidden="true" />
+                全折叠
               </button>
               <button
                 className="panel-action"
@@ -1091,10 +1672,11 @@ function LibraryHome(props: LibraryHomeProps) {
           <div
             className="upload-status"
             data-status={uploadState.status}
-            data-active={dragTarget === "" ? "true" : undefined}
+            data-active={dragTarget?.path === "" ? "true" : undefined}
+            data-drop-action={dragTarget?.path === "" ? dragTarget.action : undefined}
             onDragOver={(event) => markDragTarget("", event)}
             onDragLeave={clearDragTarget}
-            onDrop={(event) => dropFilesToTopic("", event)}
+            onDrop={(event) => dropToTopic("", event)}
           >
             <Upload aria-hidden="true" />
             <span>{uploadState.message}</span>
@@ -1102,20 +1684,42 @@ function LibraryHome(props: LibraryHomeProps) {
           {props.tree ? (
             <TopicTree
               activeTopic={props.activeTopic}
+              collapsedFolders={visibleCollapsedFolders}
               dragTarget={dragTarget}
+              draggedFilePath={draggedFilePath}
               filesByTopic={filesByTopic}
               mode={props.treeMode}
               root={props.tree}
               selectedFilePath={props.selectedTreeFilePath}
               onDragLeave={clearDragTarget}
               onDragTarget={markDragTarget}
-              onDropFiles={dropFilesToTopic}
+              onDropToTopic={dropToTopic}
+              onFileDragEnd={endFileDrag}
+              onFileDragStart={startFileDrag}
               onFileSelect={props.onSelectTreeFile}
+              onRevealPath={revealPathInManager}
               onTopicChange={props.onTopicChange}
+              onToggleFolder={toggleFolder}
             />
           ) : (
             <div className="topic-list empty">等待索引</div>
           )}
+          <div
+            className="sidebar-resize-handle"
+            role="separator"
+            tabIndex={0}
+            aria-label="拖拽调整目录宽度"
+            aria-orientation="vertical"
+            aria-valuemin={SIDEBAR_MIN_WIDTH}
+            aria-valuemax={SIDEBAR_MAX_WIDTH}
+            aria-valuenow={Math.round(sidebarWidth ?? SIDEBAR_DEFAULT_WIDTH)}
+            title="拖拽调整目录宽度"
+            onKeyDown={stepSidebarResize}
+            onPointerCancel={endSidebarResize}
+            onPointerDown={startSidebarResize}
+            onPointerMove={updateSidebarResize}
+            onPointerUp={endSidebarResize}
+          />
         </aside>
 
         <section className="library-content" aria-label="文件列表">
@@ -1205,16 +1809,22 @@ function LibraryHome(props: LibraryHomeProps) {
 
 type TopicTreeProps = {
   activeTopic: string;
-  dragTarget: string | null;
+  collapsedFolders: Set<string>;
+  dragTarget: DragTargetState | null;
+  draggedFilePath: string | null;
   filesByTopic: Map<string, LibraryItem[]>;
   mode: TreeDisplayMode;
   root: LibraryNode;
   selectedFilePath: string | null;
   onDragLeave: (event: ReactDragEvent<HTMLElement>) => void;
   onDragTarget: (targetPath: string, event: ReactDragEvent<HTMLElement>) => void;
-  onDropFiles: (targetPath: string, event: ReactDragEvent<HTMLElement>) => void;
+  onDropToTopic: (targetPath: string, event: ReactDragEvent<HTMLElement>) => void;
+  onFileDragEnd: () => void;
+  onFileDragStart: (item: LibraryItem, event: ReactDragEvent<HTMLElement>) => void;
   onFileSelect: (relativePath: string) => void;
+  onRevealPath: (relativePath: string, kind: "file" | "folder") => void;
   onTopicChange: (topic: string) => void;
+  onToggleFolder: (folderPath: string) => void;
 };
 
 function TopicTree(props: TopicTreeProps) {
@@ -1223,11 +1833,13 @@ function TopicTree(props: TopicTreeProps) {
       className="topic-list"
       onDragOver={(event) => props.onDragTarget("", event)}
       onDragLeave={props.onDragLeave}
-      onDrop={(event) => props.onDropFiles("", event)}
+      onDrop={(event) => props.onDropToTopic("", event)}
     >
       <TopicTreeNode
         activeTopic={props.activeTopic}
+        collapsedFolders={props.collapsedFolders}
         dragTarget={props.dragTarget}
+        draggedFilePath={props.draggedFilePath}
         filesByTopic={props.filesByTopic}
         mode={props.mode}
         node={props.root}
@@ -1235,9 +1847,13 @@ function TopicTree(props: TopicTreeProps) {
         selectedFilePath={props.selectedFilePath}
         onDragLeave={props.onDragLeave}
         onDragTarget={props.onDragTarget}
-        onDropFiles={props.onDropFiles}
+        onDropToTopic={props.onDropToTopic}
+        onFileDragEnd={props.onFileDragEnd}
+        onFileDragStart={props.onFileDragStart}
         onFileSelect={props.onFileSelect}
+        onRevealPath={props.onRevealPath}
         onTopicChange={props.onTopicChange}
+        onToggleFolder={props.onToggleFolder}
       />
     </div>
   );
@@ -1250,7 +1866,9 @@ type TopicTreeNodeProps = Omit<TopicTreeProps, "root"> & {
 
 function TopicTreeNode({
   activeTopic,
+  collapsedFolders,
   dragTarget,
+  draggedFilePath,
   filesByTopic,
   mode,
   node,
@@ -1258,42 +1876,85 @@ function TopicTreeNode({
   selectedFilePath,
   onDragLeave,
   onDragTarget,
-  onDropFiles,
+  onDropToTopic,
+  onFileDragEnd,
+  onFileDragStart,
   onFileSelect,
-  onTopicChange
+  onRevealPath,
+  onTopicChange,
+  onToggleFolder
 }: TopicTreeNodeProps) {
+  const tooltip = useContext(HoverTooltipContext);
   const isRoot = node.path === "";
   const isActive = node.path === activeTopic;
-  const isDropTarget = dragTarget === node.path;
+  const isDropTarget = dragTarget?.path === node.path;
   const files = mode === "all" ? filesByTopic.get(node.path) ?? EMPTY_ITEMS : EMPTY_ITEMS;
+  const canCollapse = !isRoot && (node.children.length > 0 || files.length > 0);
+  const isCollapsed = canCollapse && collapsedFolders.has(node.path);
+  const nodeLabel = isRoot ? "全部主题" : node.name;
 
   return (
     <div className="topic-node">
-      <button
+      <div
         className={[
           "topic-button",
           isActive ? "active" : "",
           isDropTarget ? "drop-target" : ""
         ].filter(Boolean).join(" ")}
+        data-drop-action={isDropTarget ? dragTarget?.action : undefined}
         style={{ "--topic-depth": depth } as React.CSSProperties}
-        type="button"
-        onClick={() => onTopicChange(node.path)}
+        onBlur={tooltip.hide}
         onDragOver={(event) => onDragTarget(node.path, event)}
         onDragLeave={onDragLeave}
-        onDrop={(event) => onDropFiles(node.path, event)}
+        onDrop={(event) => onDropToTopic(node.path, event)}
+        onFocus={() => tooltip.show(nodeLabel)}
+        onMouseEnter={() => tooltip.show(nodeLabel)}
+        onMouseLeave={tooltip.hide}
       >
-        <span className="topic-main">
-          <Folder aria-hidden="true" />
-          <span className="topic-name">{isRoot ? "全部主题" : node.name}</span>
-        </span>
+        {canCollapse ? (
+          <button
+            className="topic-fold"
+            type="button"
+            aria-label={`${isCollapsed ? "展开" : "折叠"}${node.name}`}
+            aria-expanded={!isCollapsed}
+            data-collapsed={isCollapsed ? "true" : undefined}
+            title={isCollapsed ? "展开文件夹" : "折叠文件夹"}
+            onClick={() => onToggleFolder(node.path)}
+          >
+            <ChevronDown aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="topic-fold-placeholder" aria-hidden="true" />
+        )}
+        <button
+          className="topic-select"
+          type="button"
+          onClick={() => onTopicChange(node.path)}
+        >
+          <span className="topic-main">
+            <Folder aria-hidden="true" />
+            <span className="topic-name">{nodeLabel}</span>
+          </span>
+        </button>
         <span className="topic-count">{node.count}</span>
-      </button>
-      {node.children.length ? (
+        <button
+          className="topic-reveal"
+          type="button"
+          aria-label={`在资源管理器中显示${isRoot ? "全部主题" : node.name}`}
+          title="在资源管理器中显示"
+          onClick={() => onRevealPath(node.path, "folder")}
+        >
+          <ExternalLink aria-hidden="true" />
+        </button>
+      </div>
+      {!isCollapsed && node.children.length ? (
         <div className="topic-children">
           {node.children.map((child) => (
             <TopicTreeNode
               activeTopic={activeTopic}
+              collapsedFolders={collapsedFolders}
               dragTarget={dragTarget}
+              draggedFilePath={draggedFilePath}
               filesByTopic={filesByTopic}
               key={child.path}
               mode={mode}
@@ -1302,33 +1963,61 @@ function TopicTreeNode({
               selectedFilePath={selectedFilePath}
               onDragLeave={onDragLeave}
               onDragTarget={onDragTarget}
-              onDropFiles={onDropFiles}
+              onDropToTopic={onDropToTopic}
+              onFileDragEnd={onFileDragEnd}
+              onFileDragStart={onFileDragStart}
               onFileSelect={onFileSelect}
+              onRevealPath={onRevealPath}
               onTopicChange={onTopicChange}
+              onToggleFolder={onToggleFolder}
             />
           ))}
         </div>
       ) : null}
-      {files.length ? (
-        <div className="topic-files">
+      {!isCollapsed && files.length ? (
+        <div className="topic-files" style={{ "--topic-depth": depth + 1 } as React.CSSProperties}>
           {files.map((item) => (
-            <button
+            <div
               className={[
                 "topic-button",
                 "file-node",
-                item.relativePath === selectedFilePath ? "active" : ""
+                item.relativePath === selectedFilePath ? "active" : "",
+                item.relativePath === draggedFilePath ? "drag-source" : ""
               ].filter(Boolean).join(" ")}
+              draggable
               key={item.id}
               style={{ "--topic-depth": depth + 1 } as React.CSSProperties}
-              type="button"
-              onClick={() => onFileSelect(item.relativePath)}
+              onBlur={tooltip.hide}
+              onDragEnd={onFileDragEnd}
+              onDragOver={(event) => event.stopPropagation()}
+              onDragStart={(event) => onFileDragStart(item, event)}
+              onDrop={(event) => event.stopPropagation()}
+              onFocus={() => tooltip.show(item.title)}
+              onMouseEnter={() => tooltip.show(item.title)}
+              onMouseLeave={tooltip.hide}
             >
-              <span className="topic-main">
-                {treeFileIcon(item.kind)}
-                <span className="topic-name">{item.title}</span>
-              </span>
-              <span className="topic-file-kind">{KIND_LABELS[item.kind]}</span>
-            </button>
+              <span className="topic-fold-placeholder" aria-hidden="true" />
+              <button
+                className="topic-select"
+                type="button"
+                onClick={() => onFileSelect(item.relativePath)}
+              >
+                <span className="topic-main">
+                  <FileIcon className="file-type-icon" item={item} />
+                  <span className="topic-name">{item.title}</span>
+                </span>
+              </button>
+              <span className="topic-file-kind">{fileDisplayLabel(item)}</span>
+              <button
+                className="topic-reveal"
+                type="button"
+                aria-label={`在资源管理器中显示${item.title}`}
+                title="在资源管理器中显示"
+                onClick={() => onRevealPath(item.relativePath, "file")}
+              >
+                <ExternalLink aria-hidden="true" />
+              </button>
+            </div>
           ))}
         </div>
       ) : null}
@@ -1340,14 +2029,14 @@ function FileCard({ item, onOpen }: { item: LibraryItem; onOpen: (relativePath: 
   return (
     <article className="file-card">
       <button className="file-card-button" type="button" onClick={() => onOpen(item.relativePath)}>
-        <span className="file-icon">{kindIcon(item.kind)}</span>
+        <FileIcon className="file-icon" item={item} />
         <span className="file-main">
           <FullText className="file-title" text={item.title}>{item.title}</FullText>
           <FullText className="file-path" text={item.relativePath}>{item.relativePath}</FullText>
         </span>
       </button>
       <div className="file-meta">
-        <span>{KIND_LABELS[item.kind]}</span>
+        <span>{fileDisplayLabel(item)}</span>
         <span>{topicLabel(item.topicPath)}</span>
         <span>{formatSize(item.size)}</span>
         <span>{formatDate(item.mtimeMs)}</span>

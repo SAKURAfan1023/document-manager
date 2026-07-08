@@ -5,6 +5,12 @@
       "tags": ["样例", "HTML", "S1"],
       "order": 1,
       "hidden": false
+    },
+    "S1/comparison/index.html": {
+      "title": "TextIn Badcase 横向解析对比",
+      "tags": ["S1", "横评", "Badcase", "HTML"],
+      "order": 2,
+      "hidden": false
     }
   }
 }

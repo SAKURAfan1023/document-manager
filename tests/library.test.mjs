@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApiHandler } from "../server/index.mjs";
 import {
   createLibraryIndexState,
+  moveLibraryFile,
+  revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
   uploadLibraryFiles
@@ -156,6 +158,194 @@ describe("uploadLibraryFiles", () => {
   });
 });
 
+describe("moveLibraryFile", () => {
+  it("移动文件并迁移 metadata", async () => {
+    const result = await moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题/说明.md",
+      targetPath: ""
+    });
+
+    expect(result).toEqual({
+      moved: {
+        relativePath: "说明.md",
+        title: "说明"
+      },
+      changed: true
+    });
+
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(path.join(libraryDir, "说明.md"))).resolves.toMatchObject({ isFile: expect.any(Function) });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["说明.md"]).toMatchObject({
+      title: "覆盖标题",
+      tags: ["重点"],
+      order: 1
+    });
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+
+    const scanned = await scanLibrary({ libraryDir, metaPath });
+    const moved = scanned.items.find((item) => item.relativePath === "说明.md");
+    expect(moved?.title).toBe("覆盖标题");
+  });
+
+  it("移动到已有同名文件的目录时自动改名", async () => {
+    await fs.writeFile(path.join(libraryDir, "S1", "说明.md"), "# 已存在");
+
+    const result = await moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题/说明.md",
+      targetPath: "S1"
+    });
+
+    expect(result).toEqual({
+      moved: {
+        relativePath: "S1/说明 2.md",
+        title: "说明 2"
+      },
+      changed: true
+    });
+
+    await expect(fs.stat(path.join(libraryDir, "S1", "说明.md"))).resolves.toMatchObject({ isFile: expect.any(Function) });
+    await expect(fs.stat(path.join(libraryDir, "S1", "说明 2.md"))).resolves.toMatchObject({ isFile: expect.any(Function) });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["S1/说明 2.md"]).toMatchObject({ title: "覆盖标题" });
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("同目录移动视为无操作", async () => {
+    const result = await moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题/说明.md",
+      targetPath: "S1/子主题"
+    });
+
+    expect(result).toEqual({
+      moved: {
+        relativePath: "S1/子主题/说明.md",
+        title: "说明"
+      },
+      changed: false
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).resolves.toMatchObject({
+      isFile: expect.any(Function)
+    });
+  });
+
+  it("阻止移动路径逃出 library", async () => {
+    await expect(moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "../DESIGN.md",
+      targetPath: "S1"
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题/说明.md",
+      targetPath: "../outside"
+    })).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("拒绝缺失源文件和目录源", async () => {
+    await expect(moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/missing.md",
+      targetPath: ""
+    })).rejects.toMatchObject({ statusCode: 404 });
+
+    await expect(moveLibraryFile({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题",
+      targetPath: ""
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe("revealLibraryPath", () => {
+  it("解析文件和文件夹并调用资源管理器打开动作", async () => {
+    const calls = [];
+    const reveal = (absolutePath, kind) => calls.push({ absolutePath, kind });
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "S1/子主题/说明.md",
+      kind: "file",
+      reveal
+    })).resolves.toEqual({
+      revealed: {
+        relativePath: "S1/子主题/说明.md",
+        kind: "file"
+      }
+    });
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "S1/子主题",
+      kind: "folder",
+      reveal
+    })).resolves.toEqual({
+      revealed: {
+        relativePath: "S1/子主题",
+        kind: "folder"
+      }
+    });
+
+    expect(calls).toEqual([
+      {
+        absolutePath: path.join(libraryDir, "S1", "子主题", "说明.md"),
+        kind: "file"
+      },
+      {
+        absolutePath: path.join(libraryDir, "S1", "子主题"),
+        kind: "folder"
+      }
+    ]);
+  });
+
+  it("阻止打开 library 外路径并校验目标类型", async () => {
+    const reveal = () => {
+      throw new Error("不应调用资源管理器");
+    };
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "../DESIGN.md",
+      kind: "file",
+      reveal
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "S1/missing.md",
+      kind: "file",
+      reveal
+    })).rejects.toMatchObject({ statusCode: 404 });
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "S1/子主题",
+      kind: "file",
+      reveal
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(revealLibraryPath({
+      libraryDir,
+      relativePath: "S1/子主题/说明.md",
+      kind: "folder",
+      reveal
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("library API", () => {
   it("读取 status 不触发扫描或创建 library 目录", async () => {
     const unscannedLibraryDir = path.join(tempRoot, "unscanned-library");
@@ -201,6 +391,86 @@ describe("library API", () => {
 
       const cleanStatus = await fetch(`${server.baseUrl}/api/library/status`);
       expect(await cleanStatus.json()).toMatchObject({ changed: false, version: 1, changedAt: null });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("移动后 status 变更，完整索引读取后清理标记", async () => {
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const moveResponse = await fetch(`${server.baseUrl}/api/library/move`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sourcePath: "S1/子主题/说明.md",
+          targetPath: ""
+        })
+      });
+
+      expect(moveResponse.status).toBe(200);
+      expect(await moveResponse.json()).toMatchObject({
+        moved: { relativePath: "说明.md", title: "说明" },
+        changed: true,
+        version: 1
+      });
+
+      const dirtyStatus = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await dirtyStatus.json()).toMatchObject({ changed: true, version: 1 });
+
+      const libraryResponse = await fetch(`${server.baseUrl}/api/library`);
+      const library = await libraryResponse.json();
+      expect(library.items.some((item) => item.relativePath === "说明.md")).toBe(true);
+      expect(library.items.some((item) => item.relativePath === "S1/子主题/说明.md")).toBe(false);
+
+      const cleanStatus = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await cleanStatus.json()).toMatchObject({ changed: false, version: 1, changedAt: null });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("打开资源管理器接口转发相对路径和类型", async () => {
+    const calls = [];
+    const server = await createTestServer(createApiHandler({
+      libraryDir,
+      metaPath,
+      revealLibraryPath: async (payload) => {
+        calls.push(payload);
+        return {
+          revealed: {
+            relativePath: payload.relativePath,
+            kind: payload.kind
+          }
+        };
+      }
+    }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/api/library/reveal`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/子主题",
+          kind: "folder"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        revealed: {
+          relativePath: "S1/子主题",
+          kind: "folder"
+        }
+      });
+      expect(calls).toEqual([
+        {
+          relativePath: "S1/子主题",
+          kind: "folder",
+          libraryDir
+        }
+      ]);
     } finally {
       await server.close();
     }
