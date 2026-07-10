@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Settings2,
   Tags,
   Trash2,
   Upload,
@@ -217,6 +218,7 @@ const MarkdownRichEditor = lazy(() => import("./MarkdownRichEditor"));
 const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
+const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-settings";
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
 const TREE_CONTEXT_MENU_WIDTH = 232;
@@ -243,11 +245,28 @@ type ViewportSize = {
 type ReaderPanelPlacement = "top" | "bottom";
 type ReaderMode = "preview" | "edit";
 type EditorSaveState = "idle" | "loading" | "saving" | "saved" | "error";
+type ReaderControlAction = "back" | "previous" | "next" | "refresh" | "mode" | "save" | "openExternal" | "fileSwitcher";
 
 type StoredReaderControlState = {
   position: Point;
   panelPlacement: ReaderPanelPlacement | null;
 };
+
+type ReaderControlSettings = {
+  closeOnOutsideClick: boolean;
+  visibleActions: Record<ReaderControlAction, boolean>;
+};
+
+const READER_CONTROL_ACTIONS: Array<{ id: ReaderControlAction; label: string }> = [
+  { id: "back", label: "返回文件列表" },
+  { id: "previous", label: "上一个文件" },
+  { id: "next", label: "下一个文件" },
+  { id: "refresh", label: "刷新索引" },
+  { id: "mode", label: "预览与编辑切换" },
+  { id: "save", label: "保存修改" },
+  { id: "openExternal", label: "新标签打开" },
+  { id: "fileSwitcher", label: "文件切换器" }
+];
 
 const HoverTooltipContext = createContext<HoverTooltipContextValue>({
   hide: () => {},
@@ -576,6 +595,53 @@ function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlac
     window.localStorage.setItem(READER_CONTROLS_STORAGE_KEY, JSON.stringify({ ...position, panelPlacement }));
   } catch {
     // The floating control still works if storage is unavailable.
+  }
+}
+
+function getDefaultReaderControlSettings(): ReaderControlSettings {
+  return {
+    closeOnOutsideClick: true,
+    visibleActions: {
+      back: true,
+      previous: true,
+      next: true,
+      refresh: true,
+      mode: true,
+      save: true,
+      openExternal: true,
+      fileSwitcher: true
+    }
+  };
+}
+
+function readReaderControlSettings(): ReaderControlSettings {
+  const defaults = getDefaultReaderControlSettings();
+  try {
+    const raw = window.localStorage.getItem(READER_CONTROL_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return defaults;
+    }
+    const parsed = JSON.parse(raw) as Partial<ReaderControlSettings>;
+    const visibleActions = parsed.visibleActions ?? {};
+    return {
+      closeOnOutsideClick: typeof parsed.closeOnOutsideClick === "boolean"
+        ? parsed.closeOnOutsideClick
+        : defaults.closeOnOutsideClick,
+      visibleActions: Object.fromEntries(READER_CONTROL_ACTIONS.map(({ id }) => [
+        id,
+        typeof visibleActions[id] === "boolean" ? visibleActions[id] : defaults.visibleActions[id]
+      ])) as Record<ReaderControlAction, boolean>
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveReaderControlSettings(settings: ReaderControlSettings) {
+  try {
+    window.localStorage.setItem(READER_CONTROL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // The reader keeps the current settings if storage is unavailable.
   }
 }
 
@@ -3348,6 +3414,10 @@ function ReaderControls(props: ReaderControlsProps) {
     return getReaderPanelPlacement(initialPosition, initialViewport);
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState(readReaderControlSettings);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -3376,6 +3446,30 @@ function ReaderControls(props: ReaderControlsProps) {
   useEffect(() => {
     setBallPosition((current) => clampReaderControlPosition(current, viewport, compactWidth));
   }, [compactWidth, viewport]);
+
+  useEffect(() => {
+    if (!props.isOpen) {
+      setIsSettingsOpen(false);
+    }
+  }, [props.isOpen]);
+
+  const isSettingsDialogOpen = props.isOpen && isSettingsOpen;
+
+  useEffect(() => {
+    if (!isSettingsDialogOpen) {
+      return;
+    }
+
+    const dialog = settingsDialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+    return () => {
+      if (dialog?.open) {
+        dialog.close();
+      }
+    };
+  }, [isSettingsDialogOpen]);
 
   const dockTarget = getReaderControlTarget(ballPosition, props.isOpen, viewport, panelPlacement, showSave);
   const dockTransition: Transition = isDragging || prefersReducedMotion
@@ -3461,6 +3555,39 @@ function ReaderControls(props: ReaderControlsProps) {
     tooltip
   ]);
 
+  const closePanel = useCallback(() => {
+    if (props.isOpen) {
+      tooltip.hide();
+      props.onToggleOpen(false);
+    }
+  }, [props.isOpen, props.onToggleOpen, tooltip]);
+
+  useEffect(() => {
+    if (!props.isOpen || !settings.closeOnOutsideClick) {
+      return;
+    }
+
+    const closeWhenOutside = (target: EventTarget | null) => {
+      if (!(target instanceof Node) || dockRef.current?.contains(target) || settingsDialogRef.current?.contains(target)) {
+        return;
+      }
+      closePanel();
+    };
+    const handlePointerDown = (event: PointerEvent) => closeWhenOutside(event.target);
+    const handleWindowBlur = () => {
+      if (document.activeElement instanceof HTMLIFrameElement) {
+        closePanel();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [closePanel, props.isOpen, settings.closeOnOutsideClick]);
+
   const beginDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (props.isOpen || event.button !== 0) {
       return;
@@ -3523,26 +3650,41 @@ function ReaderControls(props: ReaderControlsProps) {
     saveReaderControlState(nextPosition, nextPanelPlacement);
   };
 
-  const closePanel = () => {
-    if (props.isOpen) {
-      tooltip.hide();
-      props.onToggleOpen(false);
-    }
+  const updateVisibleAction = (action: ReaderControlAction, visible: boolean) => {
+    setSettings((current) => {
+      const next = { ...current, visibleActions: { ...current.visibleActions, [action]: visible } };
+      saveReaderControlSettings(next);
+      return next;
+    });
   };
 
-  const closePanelFromLayer = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (props.isOpen && event.target === event.currentTarget) {
-      closePanel();
-    }
+  const updateCloseOnOutsideClick = (closeOnOutsideClick: boolean) => {
+    setSettings((current) => {
+      const next = { ...current, closeOnOutsideClick };
+      saveReaderControlSettings(next);
+      return next;
+    });
+  };
+
+  const resetControlPosition = () => {
+    const nextPosition = clampReaderControlPosition(getDefaultReaderControlPosition(viewport), viewport, compactWidth);
+    const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport);
+    setBallPosition(nextPosition);
+    setPanelPlacement(nextPanelPlacement);
+    saveReaderControlState(nextPosition, nextPanelPlacement);
+  };
+
+  const resetSettings = () => {
+    const defaults = getDefaultReaderControlSettings();
+    setSettings(defaults);
+    saveReaderControlSettings(defaults);
   };
 
   return (
     <LazyMotion features={domMax}>
-      <div
-        className={props.isOpen ? "reader-control-layer active" : "reader-control-layer"}
-        onPointerDown={closePanelFromLayer}
-      >
+      <div className="reader-control-layer">
         <m.div
+          ref={dockRef}
           className={props.isOpen ? "reader-control-dock expanded" : "reader-control-dock compact"}
           animate={dockTarget}
           initial={false}
@@ -3626,49 +3768,57 @@ function ReaderControls(props: ReaderControlsProps) {
                   exit="closed"
                   variants={actionListVariants}
                 >
-                  <m.button
-                    className="icon-button"
-                    type="button"
-                    title="返回文件列表"
-                    aria-label="返回文件列表"
-                    onClick={props.onBack}
-                    variants={actionButtonVariants}
-                  >
-                    <Home aria-hidden="true" />
-                  </m.button>
-                  <m.button
-                    className="icon-button"
-                    type="button"
-                    title="上一个文件"
-                    aria-label="上一个文件"
-                    disabled={!props.previous}
-                    onClick={() => props.previous && props.onOpen(props.previous.relativePath)}
-                    variants={actionButtonVariants}
-                  >
-                    <ArrowLeft aria-hidden="true" />
-                  </m.button>
-                  <m.button
-                    className="icon-button"
-                    type="button"
-                    title="下一个文件"
-                    aria-label="下一个文件"
-                    disabled={!props.next}
-                    onClick={() => props.next && props.onOpen(props.next.relativePath)}
-                    variants={actionButtonVariants}
-                  >
-                    <ArrowRight aria-hidden="true" />
-                  </m.button>
-                  <m.button
-                    className="icon-button"
-                    type="button"
-                    title="刷新索引"
-                    aria-label="刷新索引"
-                    onClick={props.onRefresh}
-                    variants={actionButtonVariants}
-                  >
-                    <RefreshCw aria-hidden="true" />
-                  </m.button>
-                  {props.canEdit ? (
+                  {settings.visibleActions.back ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title="返回文件列表"
+                      aria-label="返回文件列表"
+                      onClick={props.onBack}
+                      variants={actionButtonVariants}
+                    >
+                      <Home aria-hidden="true" />
+                    </m.button>
+                  ) : null}
+                  {settings.visibleActions.previous ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title="上一个文件"
+                      aria-label="上一个文件"
+                      disabled={!props.previous}
+                      onClick={() => props.previous && props.onOpen(props.previous.relativePath)}
+                      variants={actionButtonVariants}
+                    >
+                      <ArrowLeft aria-hidden="true" />
+                    </m.button>
+                  ) : null}
+                  {settings.visibleActions.next ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title="下一个文件"
+                      aria-label="下一个文件"
+                      disabled={!props.next}
+                      onClick={() => props.next && props.onOpen(props.next.relativePath)}
+                      variants={actionButtonVariants}
+                    >
+                      <ArrowRight aria-hidden="true" />
+                    </m.button>
+                  ) : null}
+                  {settings.visibleActions.refresh ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title="刷新索引"
+                      aria-label="刷新索引"
+                      onClick={props.onRefresh}
+                      variants={actionButtonVariants}
+                    >
+                      <RefreshCw aria-hidden="true" />
+                    </m.button>
+                  ) : null}
+                  {settings.visibleActions.mode && props.canEdit ? (
                     <m.button
                       className="icon-button"
                       type="button"
@@ -3680,7 +3830,7 @@ function ReaderControls(props: ReaderControlsProps) {
                       {props.mode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
                     </m.button>
                   ) : null}
-                  {showSave ? (
+                  {settings.visibleActions.save && showSave ? (
                     <m.button
                       className="icon-button reader-save-button"
                       type="button"
@@ -3693,40 +3843,125 @@ function ReaderControls(props: ReaderControlsProps) {
                       <Save aria-hidden="true" />
                     </m.button>
                   ) : null}
-                  <m.a
+                  {settings.visibleActions.openExternal ? (
+                    <m.a
+                      className="icon-button"
+                      href={props.item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="新标签打开"
+                      aria-label="新标签打开"
+                      variants={actionButtonVariants}
+                    >
+                      <ExternalLink aria-hidden="true" />
+                    </m.a>
+                  ) : null}
+                  <m.button
                     className="icon-button"
-                    href={props.item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="新标签打开"
-                    aria-label="新标签打开"
+                    type="button"
+                    title="阅读控制设置"
+                    aria-label="阅读控制设置"
+                    onClick={() => setIsSettingsOpen(true)}
                     variants={actionButtonVariants}
                   >
-                    <ExternalLink aria-hidden="true" />
-                  </m.a>
+                    <Settings2 aria-hidden="true" />
+                  </m.button>
                 </m.div>
 
-                <m.div
-                  className="reader-select-wrap"
-                  initial={{ opacity: 0, scale: 0.98, x: 14 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, x: 8, transition: itemExitTransition }}
-                  transition={controlItemInTransition}
-                >
-                  <MotionSelect
-                    ariaLabel="切换文件"
-                    className="reader-select-control"
-                    maxVisibleItems={8}
-                    options={navigationOptions}
-                    value={props.item.relativePath}
-                    onChange={props.onOpen}
-                  />
-                </m.div>
+                {settings.visibleActions.fileSwitcher ? (
+                  <m.div
+                    className="reader-select-wrap"
+                    initial={{ opacity: 0, scale: 0.98, x: 14 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, x: 8, transition: itemExitTransition }}
+                    transition={controlItemInTransition}
+                  >
+                    <MotionSelect
+                      ariaLabel="切换文件"
+                      className="reader-select-control"
+                      maxVisibleItems={8}
+                      options={navigationOptions}
+                      value={props.item.relativePath}
+                      onChange={props.onOpen}
+                    />
+                  </m.div>
+                ) : null}
               </m.div>
             ) : null}
           </AnimatePresence>
         </m.div>
       </div>
+      {isSettingsDialogOpen ? createPortal(
+        <dialog
+          ref={settingsDialogRef}
+          className="reader-settings-dialog"
+          aria-labelledby="reader-settings-title"
+          onClose={() => setIsSettingsOpen(false)}
+        >
+          <header className="reader-settings-header">
+            <div>
+              <p className="eyebrow">阅读控制</p>
+              <h2 id="reader-settings-title">工具栏设置</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="关闭工具栏设置"
+              title="关闭"
+              onClick={() => settingsDialogRef.current?.close()}
+            >
+              <X aria-hidden="true" />
+            </button>
+          </header>
+
+          <section className="reader-settings-section" aria-labelledby="reader-settings-visible-actions">
+            <div>
+              <h3 id="reader-settings-visible-actions">显示项</h3>
+              <p>主菜单和设置按钮始终保留，避免无法重新配置。</p>
+            </div>
+            <div className="reader-settings-options">
+              {READER_CONTROL_ACTIONS.map(({ id, label }) => (
+                <label className="reader-settings-option" key={id}>
+                  <span>{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.visibleActions[id]}
+                    onChange={(event) => updateVisibleAction(id, event.target.checked)}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="reader-settings-section" aria-labelledby="reader-settings-behavior">
+            <div>
+              <h3 id="reader-settings-behavior">交互</h3>
+              <p>收起策略与悬浮窗位置可按个人习惯调整。</p>
+            </div>
+            <label className="reader-settings-option">
+              <span>点击工具栏外区域时收起</span>
+              <input
+                type="checkbox"
+                checked={settings.closeOnOutsideClick}
+                onChange={(event) => updateCloseOnOutsideClick(event.target.checked)}
+              />
+            </label>
+            <button className="reader-settings-reset-position" type="button" onClick={resetControlPosition}>
+              复位悬浮窗位置
+            </button>
+          </section>
+
+          <footer className="reader-settings-footer">
+            <button className="reader-settings-reset" type="button" onClick={resetSettings}>
+              恢复默认设置
+            </button>
+            <button className="button primary" type="button" onClick={() => settingsDialogRef.current?.close()}>
+              完成
+            </button>
+          </footer>
+        </dialog>,
+        document.body
+      ) : null}
     </LazyMotion>
   );
 }
