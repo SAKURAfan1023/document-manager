@@ -19,10 +19,13 @@ import {
   FileType2,
   Folder,
   FolderPlus,
+  FolderSearch,
   Home,
   ListFilter,
   Menu,
+  Minus,
   PenLine,
+  Plus,
   Presentation,
   RefreshCw,
   Save,
@@ -45,6 +48,7 @@ import {
   useEffect,
   useEffectEvent,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -110,9 +114,16 @@ type TreeContextTarget =
     path: string;
     parentPath: string;
     label: string;
+  }
+  | {
+    kind: "blank";
+    path: string;
+    label: string;
   };
 
 type TreeContextMenuState = {
+  anchorX: number;
+  anchorY: number;
   x: number;
   y: number;
   target: TreeContextTarget;
@@ -223,7 +234,6 @@ const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-set
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
 const TREE_CONTEXT_MENU_WIDTH = 232;
-const TREE_CONTEXT_MENU_HEIGHT = 432;
 const READER_FLOAT_SIZE = 56;
 const READER_COMPACT_ACTION_GAP = 12;
 const READER_PANEL_HEIGHT = 76;
@@ -255,20 +265,43 @@ type StoredReaderControlState = {
 
 type ReaderControlSettings = {
   closeOnOutsideClick: boolean;
-  visibleActions: Record<ReaderControlAction, boolean>;
+  actionOrder: ReaderControlAction[];
 };
 
-const READER_CONTROL_ACTIONS: Array<{ id: ReaderControlAction; label: string }> = [
-  { id: "back", label: "返回文件列表" },
-  { id: "previous", label: "上一个文件" },
-  { id: "next", label: "下一个文件" },
-  { id: "refresh", label: "刷新索引" },
-  { id: "mode", label: "预览与编辑切换" },
-  { id: "save", label: "保存修改" },
-  { id: "openExternal", label: "新标签打开" },
-  { id: "fileSwitcher", label: "文件切换器" },
-  { id: "multiView", label: "多文件阅览" }
+type ReaderSettingsDrag = {
+  action: ReaderControlAction;
+  source: "library" | "template";
+  pointerId: number;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  isDragging: boolean;
+};
+
+type ReaderSettingsDropTarget =
+  | { type: "template"; index: number }
+  | { type: "library" }
+  | null;
+
+const READER_CONTROL_ACTIONS: Array<{
+  id: ReaderControlAction;
+  label: string;
+  description: string;
+  icon: typeof Home;
+}> = [
+  { id: "back", label: "返回文件列表", description: "回到文件库", icon: Home },
+  { id: "previous", label: "上一个文件", description: "按当前顺序阅读上一份文件", icon: ArrowLeft },
+  { id: "next", label: "下一个文件", description: "按当前顺序阅读下一份文件", icon: ArrowRight },
+  { id: "refresh", label: "刷新索引", description: "更新文件库内容", icon: RefreshCw },
+  { id: "mode", label: "预览与编辑切换", description: "在可编辑文件中切换模式", icon: PenLine },
+  { id: "save", label: "保存修改", description: "保存当前编辑内容", icon: Save },
+  { id: "openExternal", label: "新标签打开", description: "在浏览器新标签中打开文件", icon: ExternalLink },
+  { id: "fileSwitcher", label: "文件切换器", description: "从当前文件列表直接跳转", icon: ChevronDown },
+  { id: "multiView", label: "多文件阅览", description: "添加一个并排阅览窗口", icon: Columns2 }
 ];
+
+const DEFAULT_READER_CONTROL_ACTION_ORDER: ReaderControlAction[] = ["back", "previous", "next", "fileSwitcher"];
 
 const HoverTooltipContext = createContext<HoverTooltipContextValue>({
   hide: () => {},
@@ -384,6 +417,26 @@ function getViewportWidth() {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function contextMenuPositionFromAnchor(anchorX: number, anchorY: number, menuWidth: number, menuHeight: number) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const fitsRight = anchorX + menuWidth <= viewportWidth;
+  const fitsLeft = anchorX - menuWidth >= 0;
+  const fitsBelow = anchorY + menuHeight <= viewportHeight;
+  const fitsAbove = anchorY - menuHeight >= 0;
+  const x = fitsRight || !fitsLeft
+    ? anchorX
+    : anchorX - menuWidth;
+  const y = fitsBelow || !fitsAbove
+    ? anchorY
+    : anchorY - menuHeight;
+
+  return {
+    x: clamp(x, 0, Math.max(0, viewportWidth - menuWidth)),
+    y: clamp(y, 0, Math.max(0, viewportHeight - menuHeight))
+  };
 }
 
 function areSetsEqual<TValue>(first: Set<TValue>, second: Set<TValue>) {
@@ -623,17 +676,7 @@ function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlac
 function getDefaultReaderControlSettings(): ReaderControlSettings {
   return {
     closeOnOutsideClick: true,
-    visibleActions: {
-      back: true,
-      previous: true,
-      next: true,
-      refresh: true,
-      mode: true,
-      save: true,
-      openExternal: true,
-      fileSwitcher: true,
-      multiView: true
-    }
+    actionOrder: [...DEFAULT_READER_CONTROL_ACTION_ORDER]
   };
 }
 
@@ -645,15 +688,17 @@ function readReaderControlSettings(): ReaderControlSettings {
       return defaults;
     }
     const parsed = JSON.parse(raw) as Partial<ReaderControlSettings>;
-    const visibleActions: Partial<Record<ReaderControlAction, boolean>> = parsed.visibleActions ?? {};
+    if (!Array.isArray(parsed.actionOrder)) {
+      return defaults;
+    }
+    const actionOrder = parsed.actionOrder.filter((action, index, actions): action is ReaderControlAction => (
+      READER_CONTROL_ACTIONS.some(({ id }) => id === action) && actions.indexOf(action) === index
+    ));
     return {
       closeOnOutsideClick: typeof parsed.closeOnOutsideClick === "boolean"
         ? parsed.closeOnOutsideClick
         : defaults.closeOnOutsideClick,
-      visibleActions: Object.fromEntries(READER_CONTROL_ACTIONS.map(({ id }) => [
-        id,
-        typeof visibleActions[id] === "boolean" ? visibleActions[id] : defaults.visibleActions[id]
-      ])) as Record<ReaderControlAction, boolean>
+      actionOrder
     };
   } catch {
     return defaults;
@@ -1848,6 +1893,7 @@ function LibraryHome(props: LibraryHomeProps) {
     initialTreeCollapseRef.current = readTreeCollapseStorage();
   }
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputTargetRef = useRef<string | null>(null);
   const sidebarPanelRef = useRef<HTMLElement>(null);
   const sidebarResizeRef = useRef<SidebarResizeState | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement>(null);
@@ -1988,6 +2034,24 @@ function LibraryHome(props: LibraryHomeProps) {
     };
   }, [treeContextMenu]);
 
+  useLayoutEffect(() => {
+    if (!treeContextMenu || !treeContextMenuRef.current) {
+      return;
+    }
+
+    const rect = treeContextMenuRef.current.getBoundingClientRect();
+    const position = contextMenuPositionFromAnchor(
+      treeContextMenu.anchorX,
+      treeContextMenu.anchorY,
+      rect.width,
+      rect.height
+    );
+    if (Math.abs(position.x - treeContextMenu.x) < 0.5 && Math.abs(position.y - treeContextMenu.y) < 0.5) {
+      return;
+    }
+    setTreeContextMenu((current) => current === treeContextMenu ? { ...current, ...position } : current);
+  }, [treeContextMenu]);
+
   const uploadToTopic = useCallback(async (targetPath: string, files: FileList | File[]) => {
     const visibleFiles = visibleFilesFromList(files);
     if (!visibleFiles.length) {
@@ -2020,6 +2084,11 @@ function LibraryHome(props: LibraryHomeProps) {
       });
     }
   }, [onUploadFiles]);
+
+  const openUploadPickerForPath = useCallback((targetPath: string) => {
+    fileInputTargetRef.current = targetPath;
+    fileInputRef.current?.click();
+  }, []);
 
   const moveEntryToTopic = useCallback(async (sourcePath: string, targetPath: string) => {
     setUploadState({
@@ -2163,13 +2232,27 @@ function LibraryHome(props: LibraryHomeProps) {
     onTopicChange(folderPath);
   }, [expandFolderPath, onTopicChange]);
 
+  const estimateTreeContextMenuHeight = useCallback((target: TreeContextTarget) => {
+    if (target.kind === "file") {
+      const item = props.items.find((candidate) => candidate.relativePath === target.path);
+      return item && isWpsOpenableItem(item) ? 460 : 372;
+    }
+    return target.kind === "folder" && target.path ? 250 : 170;
+  }, [props.items]);
+
   const openTreeContextMenu = useCallback((target: TreeContextTarget, event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    const x = clamp(event.clientX, 8, Math.max(8, window.innerWidth - TREE_CONTEXT_MENU_WIDTH - 8));
-    const y = clamp(event.clientY, 8, Math.max(8, window.innerHeight - TREE_CONTEXT_MENU_HEIGHT - 8));
-    setTreeContextMenu({ x, y, target });
-  }, []);
+    const anchorX = event.clientX;
+    const anchorY = event.clientY;
+    const position = contextMenuPositionFromAnchor(
+      anchorX,
+      anchorY,
+      TREE_CONTEXT_MENU_WIDTH,
+      estimateTreeContextMenuHeight(target)
+    );
+    setTreeContextMenu({ ...position, anchorX, anchorY, target });
+  }, [estimateTreeContextMenuHeight]);
 
   const openFileFromContext = useCallback((mode: ExternalOpenMode) => {
     if (!contextMenuFile) {
@@ -2207,7 +2290,7 @@ function LibraryHome(props: LibraryHomeProps) {
       return;
     }
 
-    const parentPath = target.kind === "folder" ? target.path : target.parentPath;
+    const parentPath = target.kind === "file" ? target.parentPath : target.path;
     setTreeContextMenu(null);
     const name = window.prompt(`在${dragTargetLabel(parentPath)}中新建文件夹`, "新建文件夹")?.trim();
     if (name === undefined) {
@@ -2275,7 +2358,7 @@ function LibraryHome(props: LibraryHomeProps) {
 
   const renameTargetFromContext = useCallback(() => {
     const target = treeContextMenu?.target;
-    if (!target || (target.kind === "folder" && !target.path)) {
+    if (!target || target.kind === "blank" || (target.kind === "folder" && !target.path)) {
       return;
     }
 
@@ -2325,7 +2408,7 @@ function LibraryHome(props: LibraryHomeProps) {
 
   const deleteTargetFromContext = useCallback(() => {
     const target = treeContextMenu?.target;
-    if (!target || (target.kind === "folder" && !target.path)) {
+    if (!target || target.kind === "blank" || (target.kind === "folder" && !target.path)) {
       return;
     }
 
@@ -2378,6 +2461,24 @@ function LibraryHome(props: LibraryHomeProps) {
       }
     })();
   }, [onRevealPath]);
+
+  const revealPathFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target) {
+      return;
+    }
+    setTreeContextMenu(null);
+    revealPathInManager(target.path, target.kind === "file" ? "file" : "folder");
+  }, [revealPathInManager, treeContextMenu]);
+
+  const uploadFilesFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target || target.kind === "file") {
+      return;
+    }
+    setTreeContextMenu(null);
+    openUploadPickerForPath(target.path);
+  }, [openUploadPickerForPath, treeContextMenu]);
 
   const startSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -2446,6 +2547,25 @@ function LibraryHome(props: LibraryHomeProps) {
     saveSidebarWidth(nextWidth);
   }, [sidebarWidth]);
 
+  const contextMenuTarget = treeContextMenu?.target ?? null;
+  const contextMenuCanReceiveFiles = contextMenuTarget?.kind === "folder" || contextMenuTarget?.kind === "blank";
+  const contextMenuCanRenameDelete = !!contextMenuTarget
+    && contextMenuTarget.kind !== "blank"
+    && !(contextMenuTarget.kind === "folder" && !contextMenuTarget.path);
+  const contextMenuCopyLabel = contextMenuTarget?.kind === "file"
+    ? "复制文件路径"
+    : contextMenuTarget?.kind === "folder"
+      ? "复制文件夹路径"
+      : "复制当前目录路径";
+  const contextMenuRevealLabel = contextMenuTarget?.kind === "file"
+    ? "在资源管理器中显示文件"
+    : "在资源管理器中显示文件夹";
+  const contextMenuCreateFolderLabel = contextMenuTarget?.kind === "file"
+    ? "在所在目录新建文件夹"
+    : "新建文件夹";
+  const contextMenuRenameLabel = contextMenuTarget?.kind === "folder" ? "重命名文件夹" : "重命名文件";
+  const contextMenuDeleteLabel = contextMenuTarget?.kind === "folder" ? "删除文件夹" : "删除文件";
+
   const treeContextMenuLayer = treeContextMenu && typeof document !== "undefined"
     ? createPortal(
       <div
@@ -2498,30 +2618,34 @@ function LibraryHome(props: LibraryHomeProps) {
         <div className="tree-context-menu-group">
           <button type="button" role="menuitem" onClick={copyPathFromContext}>
             <Copy aria-hidden="true" />
-            <span>复制路径</span>
+            <span>{contextMenuCopyLabel}</span>
           </button>
+          <button type="button" role="menuitem" onClick={revealPathFromContext}>
+            <FolderSearch aria-hidden="true" />
+            <span>{contextMenuRevealLabel}</span>
+          </button>
+          {contextMenuCanReceiveFiles ? (
+            <button type="button" role="menuitem" onClick={uploadFilesFromContext}>
+              <Upload aria-hidden="true" />
+              <span>上传文件到此处</span>
+            </button>
+          ) : null}
           <button type="button" role="menuitem" onClick={createFolderFromContext}>
             <FolderPlus aria-hidden="true" />
-            <span>新建文件夹</span>
+            <span>{contextMenuCreateFolderLabel}</span>
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={treeContextMenu.target.kind === "folder" && !treeContextMenu.target.path}
-            onClick={renameTargetFromContext}
-          >
-            <PenLine aria-hidden="true" />
-            <span>{treeContextMenu.target.kind === "folder" ? "重命名文件夹" : "重命名文件"}</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={treeContextMenu.target.kind === "folder" && !treeContextMenu.target.path}
-            onClick={deleteTargetFromContext}
-          >
-            <Trash2 aria-hidden="true" />
-            <span>{treeContextMenu.target.kind === "folder" ? "删除文件夹" : "删除文件"}</span>
-          </button>
+          {contextMenuCanRenameDelete ? (
+            <>
+              <button type="button" role="menuitem" onClick={renameTargetFromContext}>
+                <PenLine aria-hidden="true" />
+                <span>{contextMenuRenameLabel}</span>
+              </button>
+              <button type="button" role="menuitem" onClick={deleteTargetFromContext}>
+                <Trash2 aria-hidden="true" />
+                <span>{contextMenuDeleteLabel}</span>
+              </button>
+            </>
+          ) : null}
         </div>
       </div>,
       document.body
@@ -2574,7 +2698,7 @@ function LibraryHome(props: LibraryHomeProps) {
                 className="panel-action"
                 type="button"
                 title={`添加到${uploadTargetName}`}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => openUploadPickerForPath(props.activeTopic)}
               >
                 <Upload aria-hidden="true" />
                 添加
@@ -2607,7 +2731,9 @@ function LibraryHome(props: LibraryHomeProps) {
               multiple
               onChange={(event) => {
                 if (event.currentTarget.files) {
-                  void uploadToTopic(props.activeTopic, event.currentTarget.files);
+                  const targetPath = fileInputTargetRef.current ?? props.activeTopic;
+                  fileInputTargetRef.current = null;
+                  void uploadToTopic(targetPath, event.currentTarget.files);
                 }
                 event.currentTarget.value = "";
               }}
@@ -2727,7 +2853,14 @@ function LibraryHome(props: LibraryHomeProps) {
             {props.error ? <div className="notice error">{props.error}</div> : null}
           </div>
 
-          <div className="file-list-scroll">
+          <div
+            className="file-list-scroll"
+            onContextMenu={(event) => openTreeContextMenu({
+              kind: "blank",
+              path: props.activeTopic,
+              label: props.activeTopic ? entryNameFromRelativePath(props.activeTopic) : "当前目录"
+            }, event)}
+          >
             {props.isLoading ? (
               <div className="file-grid">
                 {Array.from({ length: 4 }).map((_, index) => (
@@ -2741,7 +2874,13 @@ function LibraryHome(props: LibraryHomeProps) {
                     folder={folder}
                     key={`folder:${folder.path}`}
                     visibleTags={props.visibleDetailTags}
+                    onContextMenu={(event) => openTreeContextMenu({
+                      kind: "folder",
+                      path: folder.path,
+                      label: folder.name || "根目录"
+                    }, event)}
                     onOpen={openContentFolder}
+                    onReveal={(folderPath) => revealPathInManager(folderPath, "folder")}
                   />
                 ))}
                 {props.filteredItems.map((item) => (
@@ -2925,7 +3064,7 @@ function TopicTreeNode({
           title="在资源管理器中显示"
           onClick={() => onRevealPath(node.path, "folder")}
         >
-          <ExternalLink aria-hidden="true" />
+          <FolderSearch aria-hidden="true" />
         </button>
       </div>
       {!isCollapsed && (node.children.length || files.length) ? (
@@ -3005,7 +3144,7 @@ function TopicTreeNode({
                     title="在资源管理器中显示"
                     onClick={() => onRevealPath(item.relativePath, "file")}
                   >
-                    <ExternalLink aria-hidden="true" />
+                    <FolderSearch aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -3082,16 +3221,32 @@ function DetailTagList({ tags }: { tags: DetailTag[] }) {
 function FolderCard({
   folder,
   visibleTags,
-  onOpen
+  onContextMenu,
+  onOpen,
+  onReveal
 }: {
   folder: LibraryNode;
   visibleTags: Set<DetailTagId>;
+  onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
   onOpen: (folderPath: string) => void;
+  onReveal: (folderPath: string) => void;
 }) {
   const detailTags = filterDetailTags(folderDetailTags(folder), visibleTags);
 
   return (
-    <article className="file-card folder-card">
+    <article className="file-card folder-card" onContextMenu={onContextMenu}>
+      <button
+        className="file-card-reveal"
+        type="button"
+        aria-label={`在资源管理器中显示${folder.name}`}
+        title="在资源管理器中显示"
+        onClick={(event) => {
+          event.stopPropagation();
+          onReveal(folder.path);
+        }}
+      >
+        <FolderSearch aria-hidden="true" />
+      </button>
       <button className="file-card-button" type="button" onClick={() => onOpen(folder.path)}>
         <span className="folder-card-icon">
           <Folder aria-hidden="true" />
@@ -3146,7 +3301,7 @@ function FileCard({
           onReveal(item.relativePath);
         }}
       >
-        <ExternalLink aria-hidden="true" />
+        <FolderSearch aria-hidden="true" />
       </button>
       <button
         className="file-card-button"
@@ -3915,8 +4070,13 @@ function ReaderControls(props: ReaderControlsProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(readReaderControlSettings);
+  const [settingsDrag, setSettingsDrag] = useState<ReaderSettingsDrag | null>(null);
+  const [settingsDropTarget, setSettingsDropTarget] = useState<ReaderSettingsDropTarget>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const settingsTemplateRef = useRef<HTMLDivElement>(null);
+  const settingsLibraryRef = useRef<HTMLDivElement>(null);
+  const settingsDragRef = useRef<ReaderSettingsDrag | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -4149,12 +4309,24 @@ function ReaderControls(props: ReaderControlsProps) {
     saveReaderControlState(nextPosition, nextPanelPlacement);
   };
 
-  const updateVisibleAction = (action: ReaderControlAction, visible: boolean) => {
+  const updateActionOrder = (update: (current: ReaderControlAction[]) => ReaderControlAction[]) => {
     setSettings((current) => {
-      const next = { ...current, visibleActions: { ...current.visibleActions, [action]: visible } };
+      const actionOrder = update(current.actionOrder);
+      if (actionOrder.length === current.actionOrder.length && actionOrder.every((action, index) => current.actionOrder[index] === action)) {
+        return current;
+      }
+      const next = { ...current, actionOrder };
       saveReaderControlSettings(next);
       return next;
     });
+  };
+
+  const addAction = (action: ReaderControlAction) => {
+    updateActionOrder((current) => current.includes(action) ? current : [...current, action]);
+  };
+
+  const removeAction = (action: ReaderControlAction) => {
+    updateActionOrder((current) => current.filter((candidate) => candidate !== action));
   };
 
   const updateCloseOnOutsideClick = (closeOnOutsideClick: boolean) => {
@@ -4177,6 +4349,172 @@ function ReaderControls(props: ReaderControlsProps) {
     const defaults = getDefaultReaderControlSettings();
     setSettings(defaults);
     saveReaderControlSettings(defaults);
+  };
+
+  const getSettingsDropTarget = (x: number, y: number): ReaderSettingsDropTarget => {
+    const element = document.elementFromPoint(x, y);
+    if (!(element instanceof Element)) {
+      return null;
+    }
+    if (settingsTemplateRef.current?.contains(element)) {
+      const templateAction = element.closest<HTMLElement>("[data-reader-template-action]");
+      if (!templateAction) {
+        return { type: "template", index: settings.actionOrder.length };
+      }
+      const index = Number(templateAction.dataset.readerTemplateAction);
+      const bounds = templateAction.getBoundingClientRect();
+      return { type: "template", index: x < bounds.left + bounds.width / 2 ? index : index + 1 };
+    }
+    if (settingsLibraryRef.current?.contains(element)) {
+      return { type: "library" };
+    }
+    return null;
+  };
+
+  const beginSettingsDrag = (
+    event: ReactPointerEvent<HTMLElement>,
+    action: ReaderControlAction,
+    source: ReaderSettingsDrag["source"]
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+    const nextDrag: ReaderSettingsDrag = {
+      action,
+      source,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: event.clientX,
+      y: event.clientY,
+      isDragging: false
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    settingsDragRef.current = nextDrag;
+    setSettingsDrag(nextDrag);
+    setSettingsDropTarget(null);
+  };
+
+  const updateSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const current = settingsDragRef.current;
+    if (!current || current.pointerId !== event.pointerId) {
+      return;
+    }
+    const isDragging = current.isDragging || Math.hypot(event.clientX - current.startX, event.clientY - current.startY) >= READER_DRAG_THRESHOLD;
+    if (!isDragging) {
+      return;
+    }
+    const nextDrag = { ...current, x: event.clientX, y: event.clientY, isDragging };
+    settingsDragRef.current = nextDrag;
+    setSettingsDrag(nextDrag);
+    setSettingsDropTarget(getSettingsDropTarget(event.clientX, event.clientY));
+  };
+
+  const endSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const current = settingsDragRef.current;
+    if (!current || current.pointerId !== event.pointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const dropTarget = current.isDragging ? getSettingsDropTarget(event.clientX, event.clientY) : null;
+    settingsDragRef.current = null;
+    setSettingsDrag(null);
+    setSettingsDropTarget(null);
+    if (!dropTarget) {
+      return;
+    }
+    updateActionOrder((currentOrder) => {
+      if (current.source === "library") {
+        if (dropTarget.type !== "template" || currentOrder.includes(current.action)) {
+          return currentOrder;
+        }
+        const next = [...currentOrder];
+        next.splice(dropTarget.index, 0, current.action);
+        return next;
+      }
+      if (dropTarget.type === "library") {
+        return currentOrder.filter((action) => action !== current.action);
+      }
+      const previousIndex = currentOrder.indexOf(current.action);
+      if (previousIndex < 0) {
+        return currentOrder;
+      }
+      const next = currentOrder.filter((action) => action !== current.action);
+      const insertionIndex = dropTarget.index > previousIndex ? dropTarget.index - 1 : dropTarget.index;
+      next.splice(insertionIndex, 0, current.action);
+      return next;
+    });
+  };
+
+  const cancelSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const current = settingsDragRef.current;
+    if (!current || current.pointerId !== event.pointerId) {
+      return;
+    }
+    settingsDragRef.current = null;
+    setSettingsDrag(null);
+    setSettingsDropTarget(null);
+  };
+
+  const renderToolbarAction = (action: ReaderControlAction) => {
+    switch (action) {
+      case "back":
+        return (
+          <m.button className="icon-button" type="button" title="返回文件列表" aria-label="返回文件列表" onClick={props.onBack} variants={actionButtonVariants} key={action}>
+            <Home aria-hidden="true" />
+          </m.button>
+        );
+      case "previous":
+        return (
+          <m.button className="icon-button" type="button" title="上一个文件" aria-label="上一个文件" disabled={!props.previous} onClick={() => props.previous && props.onOpen(props.previous.relativePath)} variants={actionButtonVariants} key={action}>
+            <ArrowLeft aria-hidden="true" />
+          </m.button>
+        );
+      case "next":
+        return (
+          <m.button className="icon-button" type="button" title="下一个文件" aria-label="下一个文件" disabled={!props.next} onClick={() => props.next && props.onOpen(props.next.relativePath)} variants={actionButtonVariants} key={action}>
+            <ArrowRight aria-hidden="true" />
+          </m.button>
+        );
+      case "refresh":
+        return (
+          <m.button className="icon-button" type="button" title="刷新索引" aria-label="刷新索引" onClick={props.onRefresh} variants={actionButtonVariants} key={action}>
+            <RefreshCw aria-hidden="true" />
+          </m.button>
+        );
+      case "multiView":
+        return (
+          <m.button className="icon-button" type="button" title={props.canAddPane ? "添加一个文件分屏" : "已达到分屏数量或宽度限制"} aria-label="添加一个文件分屏" disabled={!props.canAddPane} onClick={props.onAddPane} variants={actionButtonVariants} key={action}>
+            <Columns2 aria-hidden="true" />
+          </m.button>
+        );
+      case "mode":
+        return props.canEdit ? (
+          <m.button className="icon-button" type="button" title={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"} aria-label={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"} onClick={props.onToggleMode} variants={actionButtonVariants} key={action}>
+            {props.mode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
+          </m.button>
+        ) : null;
+      case "save":
+        return showSave ? (
+          <m.button className="icon-button reader-save-button" type="button" aria-label="保存修改" disabled={saveDisabled} title={saveDisabled ? "没有待保存的修改" : "保存修改"} onClick={props.onSave} variants={actionButtonVariants} key={action}>
+            <Save aria-hidden="true" />
+          </m.button>
+        ) : null;
+      case "openExternal":
+        return (
+          <m.a className="icon-button" href={props.item.url} target="_blank" rel="noreferrer" title="新标签打开" aria-label="新标签打开" variants={actionButtonVariants} key={action}>
+            <ExternalLink aria-hidden="true" />
+          </m.a>
+        );
+      case "fileSwitcher":
+        return (
+          <m.div className="reader-select-wrap reader-control-action-select" variants={actionButtonVariants} key={action}>
+            <MotionSelect ariaLabel="切换文件" className="reader-select-control" maxVisibleItems={8} options={navigationOptions} value={props.item.relativePath} onChange={props.onOpen} />
+          </m.div>
+        );
+    }
   };
 
   return (
@@ -4267,107 +4605,7 @@ function ReaderControls(props: ReaderControlsProps) {
                   exit="closed"
                   variants={actionListVariants}
                 >
-                  {settings.visibleActions.back ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title="返回文件列表"
-                      aria-label="返回文件列表"
-                      onClick={props.onBack}
-                      variants={actionButtonVariants}
-                    >
-                      <Home aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.previous ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title="上一个文件"
-                      aria-label="上一个文件"
-                      disabled={!props.previous}
-                      onClick={() => props.previous && props.onOpen(props.previous.relativePath)}
-                      variants={actionButtonVariants}
-                    >
-                      <ArrowLeft aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.next ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title="下一个文件"
-                      aria-label="下一个文件"
-                      disabled={!props.next}
-                      onClick={() => props.next && props.onOpen(props.next.relativePath)}
-                      variants={actionButtonVariants}
-                    >
-                      <ArrowRight aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.refresh ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title="刷新索引"
-                      aria-label="刷新索引"
-                      onClick={props.onRefresh}
-                      variants={actionButtonVariants}
-                    >
-                      <RefreshCw aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.multiView ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title={props.canAddPane ? "添加一个文件分屏" : "已达到分屏数量或宽度限制"}
-                      aria-label="添加一个文件分屏"
-                      disabled={!props.canAddPane}
-                      onClick={props.onAddPane}
-                      variants={actionButtonVariants}
-                    >
-                      <Columns2 aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.mode && props.canEdit ? (
-                    <m.button
-                      className="icon-button"
-                      type="button"
-                      title={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
-                      aria-label={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
-                      onClick={props.onToggleMode}
-                      variants={actionButtonVariants}
-                    >
-                      {props.mode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.save && showSave ? (
-                    <m.button
-                      className="icon-button reader-save-button"
-                      type="button"
-                      aria-label="保存修改"
-                      disabled={saveDisabled}
-                      title={saveDisabled ? "没有待保存的修改" : "保存修改"}
-                      onClick={props.onSave}
-                      variants={actionButtonVariants}
-                    >
-                      <Save aria-hidden="true" />
-                    </m.button>
-                  ) : null}
-                  {settings.visibleActions.openExternal ? (
-                    <m.a
-                      className="icon-button"
-                      href={props.item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="新标签打开"
-                      aria-label="新标签打开"
-                      variants={actionButtonVariants}
-                    >
-                      <ExternalLink aria-hidden="true" />
-                    </m.a>
-                  ) : null}
+                  {settings.actionOrder.map(renderToolbarAction)}
                   <m.button
                     className="icon-button"
                     type="button"
@@ -4379,25 +4617,6 @@ function ReaderControls(props: ReaderControlsProps) {
                     <Settings2 aria-hidden="true" />
                   </m.button>
                 </m.div>
-
-                {settings.visibleActions.fileSwitcher ? (
-                  <m.div
-                    className="reader-select-wrap"
-                    initial={{ opacity: 0, scale: 0.98, x: 14 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.98, x: 8, transition: itemExitTransition }}
-                    transition={controlItemInTransition}
-                  >
-                    <MotionSelect
-                      ariaLabel="切换文件"
-                      className="reader-select-control"
-                      maxVisibleItems={8}
-                      options={navigationOptions}
-                      value={props.item.relativePath}
-                      onChange={props.onOpen}
-                    />
-                  </m.div>
-                ) : null}
               </m.div>
             ) : null}
           </AnimatePresence>
@@ -4426,22 +4645,109 @@ function ReaderControls(props: ReaderControlsProps) {
             </button>
           </header>
 
-          <section className="reader-settings-section" aria-labelledby="reader-settings-visible-actions">
+          <section className="reader-settings-section reader-toolbar-assembly" aria-labelledby="reader-settings-visible-actions">
             <div>
-              <h3 id="reader-settings-visible-actions">显示项</h3>
-              <p>主菜单和设置按钮始终保留，避免无法重新配置。</p>
+              <h3 id="reader-settings-visible-actions">我的工具栏</h3>
+              <p>拖动组件到工具栏，或在工具栏内调整顺序。主菜单和设置按钮始终保留。</p>
             </div>
-            <div className="reader-settings-options">
-              {READER_CONTROL_ACTIONS.map(({ id, label }) => (
-                <label className="reader-settings-option" key={id}>
-                  <span>{label}</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.visibleActions[id]}
-                    onChange={(event) => updateVisibleAction(id, event.target.checked)}
-                  />
-                </label>
-              ))}
+            <div className="reader-toolbar-template-stage">
+              <div className="reader-toolbar-template" ref={settingsTemplateRef}>
+                <span className="reader-toolbar-template-fixed" aria-hidden="true"><Menu /></span>
+                <div className="reader-toolbar-template-document" aria-hidden="true">
+                  <span>阅读控制</span>
+                  <span>当前文档</span>
+                </div>
+                <div className="reader-toolbar-template-actions">
+                  {settings.actionOrder.flatMap((action, index) => {
+                    const definition = READER_CONTROL_ACTIONS.find(({ id }) => id === action);
+                    if (!definition) {
+                      return [];
+                    }
+                    const Icon = definition.icon;
+                    const placeholder = settingsDropTarget?.type === "template" && settingsDropTarget.index === index
+                      ? [<span className="reader-toolbar-drop-placeholder" aria-hidden="true" key={`placeholder-${index}`} />]
+                      : [];
+                    return [
+                      ...placeholder,
+                      <m.div
+                        className="reader-toolbar-template-action"
+                        data-reader-template-action={index}
+                        key={action}
+                        layout
+                        initial={{ opacity: 0, y: 20, scale: 0.82 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: MOTION_EASE_OUT }}
+                        onPointerDown={(event) => beginSettingsDrag(event, action, "template")}
+                        onPointerMove={updateSettingsDrag}
+                        onPointerUp={endSettingsDrag}
+                        onPointerCancel={cancelSettingsDrag}
+                        title={`拖动${definition.label}调整顺序或移除`}
+                      >
+                        <Icon aria-hidden="true" />
+                        <button
+                          className="reader-toolbar-template-remove"
+                          type="button"
+                          aria-label={`移除${definition.label}`}
+                          title={`移除${definition.label}`}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() => removeAction(action)}
+                        >
+                          <Minus aria-hidden="true" />
+                        </button>
+                      </m.div>
+                    ];
+                  })}
+                  {settingsDropTarget?.type === "template" && settingsDropTarget.index === settings.actionOrder.length ? <span className="reader-toolbar-drop-placeholder" aria-hidden="true" /> : null}
+                </div>
+                <span className="reader-toolbar-template-fixed" aria-hidden="true"><Settings2 /></span>
+              </div>
+            </div>
+          </section>
+
+          <section className="reader-settings-section reader-component-library" aria-labelledby="reader-settings-component-library">
+            <div>
+              <h3 id="reader-settings-component-library">组件库</h3>
+              <p>点击加号会追加到末尾，也可以向上拖入指定位置。将已装入组件向下拖回这里即可取消。</p>
+            </div>
+            <div
+              className={`reader-component-library-grid${settingsDropTarget?.type === "library" ? " is-drop-target" : ""}`}
+              ref={settingsLibraryRef}
+            >
+              {READER_CONTROL_ACTIONS.map(({ id, label, description, icon: Icon }) => {
+                const isInstalled = settings.actionOrder.includes(id);
+                return (
+                  <m.article
+                    className={`reader-component-option${isInstalled ? " is-installed" : ""}`}
+                    key={id}
+                    layout
+                    onPointerDown={isInstalled ? undefined : (event) => beginSettingsDrag(event, id, "library")}
+                    onPointerMove={isInstalled ? undefined : updateSettingsDrag}
+                    onPointerUp={isInstalled ? undefined : endSettingsDrag}
+                    onPointerCancel={isInstalled ? undefined : cancelSettingsDrag}
+                  >
+                    <span className="reader-component-option-icon" aria-hidden="true"><Icon /></span>
+                    <div>
+                      <strong>{label}</strong>
+                      <p>{description}</p>
+                    </div>
+                    {isInstalled ? (
+                      <span className="reader-component-installed">已装入</span>
+                    ) : (
+                      <m.button
+                        className="reader-component-add"
+                        type="button"
+                        aria-label={`添加${label}`}
+                        title={`添加${label}`}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={() => addAction(id)}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <Plus aria-hidden="true" />
+                      </m.button>
+                    )}
+                  </m.article>
+                );
+              })}
             </div>
           </section>
 
@@ -4450,14 +4756,19 @@ function ReaderControls(props: ReaderControlsProps) {
               <h3 id="reader-settings-behavior">交互</h3>
               <p>收起策略与悬浮窗位置可按个人习惯调整。</p>
             </div>
-            <label className="reader-settings-option">
+            <div className="reader-settings-behavior-option">
               <span>点击工具栏外区域时收起</span>
-              <input
-                type="checkbox"
-                checked={settings.closeOnOutsideClick}
-                onChange={(event) => updateCloseOnOutsideClick(event.target.checked)}
-              />
-            </label>
+              <button
+                className="reader-settings-switch"
+                type="button"
+                role="switch"
+                aria-checked={settings.closeOnOutsideClick}
+                aria-label="点击工具栏外区域时收起"
+                onClick={() => updateCloseOnOutsideClick(!settings.closeOnOutsideClick)}
+              >
+                <span />
+              </button>
+            </div>
             <button className="reader-settings-reset-position" type="button" onClick={resetControlPosition}>
               复位悬浮窗位置
             </button>
@@ -4471,6 +4782,14 @@ function ReaderControls(props: ReaderControlsProps) {
               完成
             </button>
           </footer>
+          {settingsDrag?.isDragging ? (() => {
+            const Icon = READER_CONTROL_ACTIONS.find(({ id }) => id === settingsDrag.action)?.icon;
+            return Icon ? (
+              <m.div className="reader-settings-drag-ghost" style={{ left: settingsDrag.x, top: settingsDrag.y }} initial={{ opacity: 0, scale: 0.76 }} animate={{ opacity: 0.9, scale: 1 }}>
+                <Icon aria-hidden="true" />
+              </m.div>
+            ) : null;
+          })() : null}
         </dialog>,
         document.body
       ) : null}
