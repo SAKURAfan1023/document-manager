@@ -4,15 +4,35 @@
 
 ## 界面示例
 
-![文件库首页：主题目录、搜索筛选与文件卡片](doc/README/library-overview.png)
+**文件库首页**：按主题浏览文件，配合目录树、搜索、筛选和文件卡片快速定位内容。
 
-![文件库目录树：文件夹层级、数量和文件类型](doc/README/library-folder-tree.png)
+<p align="center">
+  <img src="doc/README/library-overview.png" alt="文件库首页：主题目录、搜索筛选与文件卡片" width="960" />
+</p>
 
-![文档预览：原始文件与解析结果并排阅读](doc/README/document-parse-comparison-preview.png)
+**目录树**：展示文件夹层级、文件数量与类型；可添加文件、展开或收起目录，并切换为仅显示文件夹。
 
-![阅读器悬浮工具栏](doc/README/reader-floating-toolbar.png)
+<p align="center">
+  <img src="doc/README/library-folder-tree.png" alt="文件库目录树：文件夹层级、数量和文件类型" width="320" />
+</p>
 
-![阅读器工具栏设置](doc/README/reader-toolbar-settings.png)
+**双栏文档预览**：可并排查看原始文件与解析后的 Markdown 结果，便于核对内容。
+
+<p align="center">
+  <img src="doc/README/document-parse-comparison-preview.png" alt="文档预览：原始文件与解析结果并排阅读" width="960" />
+</p>
+
+**阅读器悬浮工具栏**：在阅读页面提供返回文件库、刷新、编辑、设置与文件切换等快捷入口。
+
+<p align="center">
+  <img src="doc/README/reader-floating-toolbar.png" alt="阅读器悬浮工具栏" width="680" />
+</p>
+
+**工具栏设置**：可按需显示或隐藏工具项，并调整收起策略与悬浮窗位置。
+
+<p align="center">
+  <img src="doc/README/reader-toolbar-settings.png" alt="阅读器工具栏设置" width="520" />
+</p>
 
 > 注意：macOS 悬浮启动器目前仍在测试中。为获得更稳定的体验，建议优先在终端运行 `npm run dev`，再通过浏览器访问平台。
 
