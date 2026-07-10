@@ -416,6 +416,7 @@ a {
 }
 
 .topic-node,
+.topic-branches,
 .topic-children,
 .topic-files {
   display: grid;
@@ -423,15 +424,15 @@ a {
   gap: 2px;
 }
 
-.topic-files {
+.topic-branches {
   position: relative;
 }
 
-.topic-files::before {
+.topic-branches::before {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  left: calc(17px + var(--topic-depth, 1) * 14px);
+  left: calc(17px + var(--topic-guide-depth, 0) * 14px);
   width: 1px;
   border-radius: var(--radius-pill);
   background: var(--hairline);

@@ -2905,86 +2905,90 @@ function TopicTreeNode({
           <ExternalLink aria-hidden="true" />
         </button>
       </div>
-      {!isCollapsed && node.children.length ? (
-        <div className="topic-children">
-          {node.children.map((child) => (
-            <TopicTreeNode
-              activeTopic={activeTopic}
-              collapsedFolders={collapsedFolders}
-              dragTarget={dragTarget}
-              draggedEntryPath={draggedEntryPath}
-              filesByTopic={filesByTopic}
-              key={child.path}
-              mode={mode}
-              node={child}
-              depth={depth + 1}
-              selectedFilePath={selectedFilePath}
-              onDragLeave={onDragLeave}
-              onDragTarget={onDragTarget}
-              onDropToTopic={onDropToTopic}
-              onEntryDragEnd={onEntryDragEnd}
-              onFileDragStart={onFileDragStart}
-              onFolderDragStart={onFolderDragStart}
-              onFileSelect={onFileSelect}
-              onContextMenu={onContextMenu}
-              onRevealPath={onRevealPath}
-              onTopicChange={onTopicChange}
-              onToggleFolder={onToggleFolder}
-            />
-          ))}
-        </div>
-      ) : null}
-      {!isCollapsed && files.length ? (
-        <div className="topic-files" style={{ "--topic-depth": depth + 1 } as React.CSSProperties}>
-          {files.map((item) => (
-            <div
-              className={[
-                "topic-button",
-                "file-node",
-                item.relativePath === selectedFilePath ? "active" : "",
-                item.relativePath === draggedEntryPath ? "drag-source" : ""
-              ].filter(Boolean).join(" ")}
-              draggable
-              key={item.id}
-              style={{ "--topic-depth": depth + 1 } as React.CSSProperties}
-              onBlur={tooltip.hide}
-              onDragEnd={onEntryDragEnd}
-              onDragOver={(event) => event.stopPropagation()}
-              onDragStart={(event) => onFileDragStart(item, event)}
-              onDrop={(event) => event.stopPropagation()}
-              onFocus={() => tooltip.show(item.title)}
-              onContextMenu={(event) => onContextMenu({
-                kind: "file",
-                path: item.relativePath,
-                parentPath: parentPathFromRelativePath(item.relativePath),
-                label: item.title
-              }, event)}
-              onMouseEnter={() => tooltip.show(item.title)}
-              onMouseLeave={tooltip.hide}
-            >
-              <span className="topic-fold-placeholder" aria-hidden="true" />
-              <button
-                className="topic-select"
-                type="button"
-                onClick={() => onFileSelect(item.relativePath)}
-              >
-                <span className="topic-main">
-                  <FileIcon className="file-type-icon" item={item} />
-                  <span className="topic-name">{item.title}</span>
-                </span>
-              </button>
-              <span className="topic-file-kind">{fileDisplayLabel(item)}</span>
-              <button
-                className="topic-reveal"
-                type="button"
-                aria-label={`在资源管理器中显示${item.title}`}
-                title="在资源管理器中显示"
-                onClick={() => onRevealPath(item.relativePath, "file")}
-              >
-                <ExternalLink aria-hidden="true" />
-              </button>
+      {!isCollapsed && (node.children.length || files.length) ? (
+        <div className="topic-branches" style={{ "--topic-guide-depth": depth } as React.CSSProperties}>
+          {node.children.length ? (
+            <div className="topic-children">
+              {node.children.map((child) => (
+                <TopicTreeNode
+                  activeTopic={activeTopic}
+                  collapsedFolders={collapsedFolders}
+                  dragTarget={dragTarget}
+                  draggedEntryPath={draggedEntryPath}
+                  filesByTopic={filesByTopic}
+                  key={child.path}
+                  mode={mode}
+                  node={child}
+                  depth={depth + 1}
+                  selectedFilePath={selectedFilePath}
+                  onDragLeave={onDragLeave}
+                  onDragTarget={onDragTarget}
+                  onDropToTopic={onDropToTopic}
+                  onEntryDragEnd={onEntryDragEnd}
+                  onFileDragStart={onFileDragStart}
+                  onFolderDragStart={onFolderDragStart}
+                  onFileSelect={onFileSelect}
+                  onContextMenu={onContextMenu}
+                  onRevealPath={onRevealPath}
+                  onTopicChange={onTopicChange}
+                  onToggleFolder={onToggleFolder}
+                />
+              ))}
             </div>
-          ))}
+          ) : null}
+          {files.length ? (
+            <div className="topic-files">
+              {files.map((item) => (
+                <div
+                  className={[
+                    "topic-button",
+                    "file-node",
+                    item.relativePath === selectedFilePath ? "active" : "",
+                    item.relativePath === draggedEntryPath ? "drag-source" : ""
+                  ].filter(Boolean).join(" ")}
+                  draggable
+                  key={item.id}
+                  style={{ "--topic-depth": depth + 1 } as React.CSSProperties}
+                  onBlur={tooltip.hide}
+                  onDragEnd={onEntryDragEnd}
+                  onDragOver={(event) => event.stopPropagation()}
+                  onDragStart={(event) => onFileDragStart(item, event)}
+                  onDrop={(event) => event.stopPropagation()}
+                  onFocus={() => tooltip.show(item.title)}
+                  onContextMenu={(event) => onContextMenu({
+                    kind: "file",
+                    path: item.relativePath,
+                    parentPath: parentPathFromRelativePath(item.relativePath),
+                    label: item.title
+                  }, event)}
+                  onMouseEnter={() => tooltip.show(item.title)}
+                  onMouseLeave={tooltip.hide}
+                >
+                  <span className="topic-fold-placeholder" aria-hidden="true" />
+                  <button
+                    className="topic-select"
+                    type="button"
+                    onClick={() => onFileSelect(item.relativePath)}
+                  >
+                    <span className="topic-main">
+                      <FileIcon className="file-type-icon" item={item} />
+                      <span className="topic-name">{item.title}</span>
+                    </span>
+                  </button>
+                  <span className="topic-file-kind">{fileDisplayLabel(item)}</span>
+                  <button
+                    className="topic-reveal"
+                    type="button"
+                    aria-label={`在资源管理器中显示${item.title}`}
+                    title="在资源管理器中显示"
+                    onClick={() => onRevealPath(item.relativePath, "file")}
+                  >
+                    <ExternalLink aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
