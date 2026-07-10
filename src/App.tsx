@@ -232,7 +232,10 @@ const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-set
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
 const TREE_CONTEXT_MENU_WIDTH = 232;
-const READER_FLOAT_SIZE = 56;
+const READER_FLOAT_SIZE = 44;
+const READER_FLOAT_MIN_SIZE = 40;
+const READER_FLOAT_MAX_SIZE = 72;
+const READER_FLOAT_SIZE_STEP = 0.5;
 const READER_COMPACT_ACTION_GAP = 12;
 const READER_PANEL_HEIGHT = 76;
 const READER_PANEL_MOBILE_HEIGHT = 124;
@@ -259,6 +262,7 @@ type ReaderControlAction = "back" | "previous" | "next" | "refresh" | "mode" | "
 type StoredReaderControlState = {
   position: Point;
   panelPlacement: ReaderPanelPlacement | null;
+  size: number;
 };
 
 type ReaderControlSettings = {
@@ -611,38 +615,43 @@ function getReaderPanelSize(viewport: ViewportSize) {
   };
 }
 
-function getCompactReaderControlWidth(hasSaveButton: boolean) {
-  return hasSaveButton ? READER_FLOAT_SIZE * 2 + READER_COMPACT_ACTION_GAP : READER_FLOAT_SIZE;
+function getCompactReaderControlWidth(hasSaveButton: boolean, floatSize = READER_FLOAT_SIZE) {
+  return hasSaveButton ? floatSize * 2 + READER_COMPACT_ACTION_GAP : floatSize;
 }
 
-function getDefaultReaderControlPosition(viewport = getViewportSize()): Point {
+function getDefaultReaderControlPosition(viewport = getViewportSize(), floatSize = READER_FLOAT_SIZE): Point {
   return {
-    x: viewport.width - READER_FLOAT_SIZE - READER_PANEL_MARGIN,
-    y: viewport.height - READER_FLOAT_SIZE - READER_PANEL_MARGIN
+    x: viewport.width - floatSize - READER_PANEL_MARGIN,
+    y: viewport.height - floatSize - READER_PANEL_MARGIN
   };
 }
 
 function clampReaderControlPosition(
   position: Point,
   viewport = getViewportSize(),
-  compactWidth = READER_FLOAT_SIZE
+  compactWidth = READER_FLOAT_SIZE,
+  floatSize = READER_FLOAT_SIZE
 ): Point {
   return {
     x: clamp(
       position.x,
-      READER_PANEL_MARGIN / 2 + compactWidth - READER_FLOAT_SIZE,
-      viewport.width - READER_FLOAT_SIZE - READER_PANEL_MARGIN / 2
+      READER_PANEL_MARGIN / 2 + compactWidth - floatSize,
+      viewport.width - floatSize - READER_PANEL_MARGIN / 2
     ),
-    y: clamp(position.y, READER_PANEL_MARGIN / 2, viewport.height - READER_FLOAT_SIZE - READER_PANEL_MARGIN / 2)
+    y: clamp(position.y, READER_PANEL_MARGIN / 2, viewport.height - floatSize - READER_PANEL_MARGIN / 2)
   };
 }
 
-function getReaderPanelPlacement(position: Point, viewport = getViewportSize()): ReaderPanelPlacement {
-  return position.y + READER_FLOAT_SIZE / 2 < viewport.height / 2 ? "top" : "bottom";
+function getReaderPanelPlacement(position: Point, viewport = getViewportSize(), floatSize = READER_FLOAT_SIZE): ReaderPanelPlacement {
+  return position.y + floatSize / 2 < viewport.height / 2 ? "top" : "bottom";
 }
 
 function isReaderPanelPlacement(value: unknown): value is ReaderPanelPlacement {
   return value === "top" || value === "bottom";
+}
+
+function isReaderFloatSize(value: unknown): value is number {
+  return typeof value === "number" && value >= READER_FLOAT_MIN_SIZE && value <= READER_FLOAT_MAX_SIZE;
 }
 
 function readStoredReaderControlState(): StoredReaderControlState | null {
@@ -651,11 +660,12 @@ function readStoredReaderControlState(): StoredReaderControlState | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<Point> & { panelPlacement?: unknown };
+    const parsed = JSON.parse(raw) as Partial<Point> & { panelPlacement?: unknown; size?: unknown };
     if (typeof parsed.x === "number" && typeof parsed.y === "number") {
       return {
         position: { x: parsed.x, y: parsed.y },
-        panelPlacement: isReaderPanelPlacement(parsed.panelPlacement) ? parsed.panelPlacement : null
+        panelPlacement: isReaderPanelPlacement(parsed.panelPlacement) ? parsed.panelPlacement : null,
+        size: isReaderFloatSize(parsed.size) ? parsed.size : READER_FLOAT_SIZE
       };
     }
   } catch {
@@ -664,9 +674,9 @@ function readStoredReaderControlState(): StoredReaderControlState | null {
   return null;
 }
 
-function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlacement) {
+function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlacement, size = READER_FLOAT_SIZE) {
   try {
-    window.localStorage.setItem(READER_CONTROLS_STORAGE_KEY, JSON.stringify({ ...position, panelPlacement }));
+    window.localStorage.setItem(READER_CONTROLS_STORAGE_KEY, JSON.stringify({ ...position, panelPlacement, size }));
   } catch {
     // The floating control still works if storage is unavailable.
   }
@@ -717,16 +727,17 @@ function getReaderControlTarget(
   isExpanded: boolean,
   viewport: ViewportSize,
   panelPlacement: ReaderPanelPlacement,
-  hasCompactSaveButton: boolean
+  hasCompactSaveButton: boolean,
+  floatSize: number
 ) {
   if (!isExpanded) {
-    const compactWidth = getCompactReaderControlWidth(hasCompactSaveButton);
+    const compactWidth = getCompactReaderControlWidth(hasCompactSaveButton, floatSize);
     return {
-      x: ballPosition.x - compactWidth + READER_FLOAT_SIZE,
+      x: ballPosition.x - compactWidth + floatSize,
       y: ballPosition.y,
       width: compactWidth,
-      height: READER_FLOAT_SIZE,
-      borderRadius: READER_FLOAT_SIZE / 2
+      height: floatSize,
+      borderRadius: floatSize / 2
     };
   }
 
@@ -4050,21 +4061,28 @@ function ReaderControls(props: ReaderControlsProps) {
   const tooltip = useContext(HoverTooltipContext);
   const showSave = props.canEdit && props.mode === "edit";
   const saveDisabled = !props.hasUnsavedChanges || props.saveState === "loading" || props.saveState === "saving";
-  const compactWidth = getCompactReaderControlWidth(showSave);
+  const [floatSize, setFloatSize] = useState(() => readStoredReaderControlState()?.size ?? READER_FLOAT_SIZE);
+  const compactWidth = getCompactReaderControlWidth(showSave, floatSize);
   const [viewport, setViewport] = useState(() => getViewportSize());
   const [ballPosition, setBallPosition] = useState(() => {
     const stored = readStoredReaderControlState();
-    return clampReaderControlPosition(stored?.position ?? getDefaultReaderControlPosition(), getViewportSize(), compactWidth);
+    return clampReaderControlPosition(
+      stored?.position ?? getDefaultReaderControlPosition(getViewportSize(), floatSize),
+      getViewportSize(),
+      compactWidth,
+      floatSize
+    );
   });
   const [panelPlacement, setPanelPlacement] = useState(() => {
     const initialViewport = getViewportSize();
     const stored = readStoredReaderControlState();
     const initialPosition = clampReaderControlPosition(
-      stored?.position ?? getDefaultReaderControlPosition(initialViewport),
+      stored?.position ?? getDefaultReaderControlPosition(initialViewport, floatSize),
       initialViewport,
-      compactWidth
+      compactWidth,
+      floatSize
     );
-    return getReaderPanelPlacement(initialPosition, initialViewport);
+    return getReaderPanelPlacement(initialPosition, initialViewport, floatSize);
   });
   const [isDragging, setIsDragging] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -4084,21 +4102,27 @@ function ReaderControls(props: ReaderControlsProps) {
       const nextViewport = getViewportSize();
       setViewport(nextViewport);
       setBallPosition((current) => {
-        const next = clampReaderControlPosition(current, nextViewport, compactWidth);
-        const nextPanelPlacement = getReaderPanelPlacement(next, nextViewport);
+        const next = clampReaderControlPosition(current, nextViewport, compactWidth, floatSize);
+        const nextPanelPlacement = getReaderPanelPlacement(next, nextViewport, floatSize);
         setPanelPlacement(nextPanelPlacement);
-        saveReaderControlState(next, nextPanelPlacement);
+        saveReaderControlState(next, nextPanelPlacement, floatSize);
         return next;
       });
     };
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [compactWidth]);
+  }, [compactWidth, floatSize]);
 
   useEffect(() => {
-    setBallPosition((current) => clampReaderControlPosition(current, viewport, compactWidth));
-  }, [compactWidth, viewport]);
+    setBallPosition((current) => {
+      const next = clampReaderControlPosition(current, viewport, compactWidth, floatSize);
+      const nextPanelPlacement = getReaderPanelPlacement(next, viewport, floatSize);
+      setPanelPlacement(nextPanelPlacement);
+      saveReaderControlState(next, nextPanelPlacement, floatSize);
+      return next;
+    });
+  }, [compactWidth, floatSize, viewport]);
 
   useEffect(() => {
     if (!props.isOpen) {
@@ -4124,7 +4148,7 @@ function ReaderControls(props: ReaderControlsProps) {
     };
   }, [isSettingsDialogOpen]);
 
-  const dockTarget = getReaderControlTarget(ballPosition, props.isOpen, viewport, panelPlacement, showSave);
+  const dockTarget = getReaderControlTarget(ballPosition, props.isOpen, viewport, panelPlacement, showSave, floatSize);
   const dockTransition: Transition = isDragging || prefersReducedMotion
     ? { duration: 0 }
     : { type: "spring", stiffness: 430, damping: 38, mass: 0.72 };
@@ -4273,7 +4297,7 @@ function ReaderControls(props: ReaderControlsProps) {
     setBallPosition(clampReaderControlPosition({
       x: dragState.startPosition.x + deltaX,
       y: dragState.startPosition.y + deltaY
-    }, viewport, compactWidth));
+    }, viewport, compactWidth, floatSize));
   };
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -4296,11 +4320,11 @@ function ReaderControls(props: ReaderControlsProps) {
     const nextPosition = clampReaderControlPosition({
       x: dragState.startPosition.x + event.clientX - dragState.startX,
       y: dragState.startPosition.y + event.clientY - dragState.startY
-    }, viewport, compactWidth);
-    const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport);
+    }, viewport, compactWidth, floatSize);
+    const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport, floatSize);
     setBallPosition(nextPosition);
     setPanelPlacement(nextPanelPlacement);
-    saveReaderControlState(nextPosition, nextPanelPlacement);
+    saveReaderControlState(nextPosition, nextPanelPlacement, floatSize);
   };
 
   const updateActionOrder = (update: (current: ReaderControlAction[]) => ReaderControlAction[]) => {
@@ -4335,11 +4359,24 @@ function ReaderControls(props: ReaderControlsProps) {
   };
 
   const resetControlPosition = () => {
-    const nextPosition = clampReaderControlPosition(getDefaultReaderControlPosition(viewport), viewport, compactWidth);
-    const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport);
+    const nextPosition = clampReaderControlPosition(getDefaultReaderControlPosition(viewport, floatSize), viewport, compactWidth, floatSize);
+    const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport, floatSize);
     setBallPosition(nextPosition);
     setPanelPlacement(nextPanelPlacement);
-    saveReaderControlState(nextPosition, nextPanelPlacement);
+    saveReaderControlState(nextPosition, nextPanelPlacement, floatSize);
+  };
+
+  const updateFloatSize = (nextSize: number) => {
+    const size = clamp(nextSize, READER_FLOAT_MIN_SIZE, READER_FLOAT_MAX_SIZE);
+    const nextCompactWidth = getCompactReaderControlWidth(showSave, size);
+    setFloatSize(size);
+    setBallPosition((current) => {
+      const nextPosition = clampReaderControlPosition(current, viewport, nextCompactWidth, size);
+      const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport, size);
+      setPanelPlacement(nextPanelPlacement);
+      saveReaderControlState(nextPosition, nextPanelPlacement, size);
+      return nextPosition;
+    });
   };
 
   const resetSettings = () => {
@@ -4424,6 +4461,7 @@ function ReaderControls(props: ReaderControlsProps) {
           {!props.isOpen && showSave ? (
             <m.button
               className="reader-float-button reader-save-button"
+              style={{ width: floatSize, height: floatSize }}
               type="button"
               aria-label="保存修改"
               disabled={saveDisabled}
@@ -4438,6 +4476,7 @@ function ReaderControls(props: ReaderControlsProps) {
 
           <m.button
             className="reader-float-button"
+            style={props.isOpen ? undefined : { width: floatSize, height: floatSize }}
             type="button"
             aria-expanded={props.isOpen}
             aria-label={props.isOpen ? "收起阅读控制" : "展开阅读控制"}
@@ -4622,6 +4661,26 @@ function ReaderControls(props: ReaderControlsProps) {
               >
                 <span />
               </button>
+            </div>
+            <div className="reader-settings-float-size">
+              <div className="reader-settings-float-size-preview" aria-hidden="true">
+                <span style={{ width: floatSize, height: floatSize }}><Menu /></span>
+              </div>
+              <label className="reader-settings-float-size-control">
+                <span>
+                  <strong>悬浮窗大小</strong>
+                  <output>{floatSize}px</output>
+                </span>
+                <input
+                  type="range"
+                  min={READER_FLOAT_MIN_SIZE}
+                  max={READER_FLOAT_MAX_SIZE}
+                  step={READER_FLOAT_SIZE_STEP}
+                  value={floatSize}
+                  aria-label="悬浮窗大小"
+                  onChange={(event) => updateFloatSize(Number(event.target.value))}
+                />
+              </label>
             </div>
             <button className="reader-settings-reset-position" type="button" onClick={resetControlPosition}>
               复位悬浮窗位置

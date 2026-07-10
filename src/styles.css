@@ -1622,6 +1622,11 @@ a {
   cursor: default;
 }
 
+.reader-control-dock.expanded .reader-float-button {
+  width: 44px !important;
+  height: 44px !important;
+}
+
 .reader-float-button {
   display: inline-grid;
   width: 44px;
@@ -1837,17 +1842,22 @@ a {
 }
 
 .reader-toolbar-template-stage {
-  margin-top: 12px;
-  padding: 12px 0 2px;
+  width: min(100%, 720px);
+  margin: 12px auto 0;
   overflow-x: auto;
+  border: 1px solid oklch(88% 0.004 270 / 70%);
+  border-radius: 999px;
+  background: var(--reader-bar);
+  padding: 10px 12px;
+  backdrop-filter: saturate(180%) blur(20px);
 }
 
 .reader-toolbar-template {
   display: flex;
   width: max-content;
-  min-width: 100%;
   align-items: center;
   gap: 8px;
+  margin-inline: auto;
 }
 
 .reader-toolbar-template-fixed,
@@ -2014,6 +2024,67 @@ a {
   border-radius: 50%;
   background: var(--canvas);
   transition: transform 180ms ease-out;
+}
+
+.reader-settings-float-size {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: oklch(99.2% 0.002 270 / 66%);
+  padding: 12px;
+}
+
+.reader-settings-float-size-preview {
+  display: grid;
+  min-height: 84px;
+  place-items: center;
+  border-right: 1px solid var(--hairline-soft);
+}
+
+.reader-settings-float-size-preview span {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--on-dark);
+}
+
+.reader-settings-float-size-preview svg {
+  width: 20px;
+  height: 20px;
+}
+
+.reader-settings-float-size-control {
+  display: grid;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.reader-settings-float-size-control > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reader-settings-float-size-control strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.reader-settings-float-size-control output {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-settings-float-size-control input {
+  width: 100%;
+  accent-color: var(--blue);
 }
 
 .reader-settings-switch:focus-visible,
@@ -2293,7 +2364,7 @@ a {
   }
 
   .reader-toolbar-template-stage {
-    padding: 12px 0 2px;
+    padding: 10px 12px;
   }
 
   .reader-toolbar-template-document {
