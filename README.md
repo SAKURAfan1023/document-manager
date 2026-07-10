@@ -2,6 +2,20 @@
 
 一个本地 Web 文档阅读平台。文件统一放入 `library/`，平台会按目录生成主题、按扩展名识别类型，并在浏览器里提供统一入口和阅读页。
 
+## 界面示例
+
+![文件库首页：主题目录、搜索筛选与文件卡片](doc/README/library-overview.png)
+
+![文件库目录树：文件夹层级、数量和文件类型](doc/README/library-folder-tree.png)
+
+![文档预览：原始文件与解析结果并排阅读](doc/README/document-parse-comparison-preview.png)
+
+![阅读器悬浮工具栏](doc/README/reader-floating-toolbar.png)
+
+![阅读器工具栏设置](doc/README/reader-toolbar-settings.png)
+
+> 注意：macOS 悬浮启动器目前仍在测试中。为获得更稳定的体验，建议优先在终端运行 `npm run dev`，再通过浏览器访问平台。
+
 ## 启动
 
 ```bash
@@ -68,9 +82,9 @@ npm run test
 npm run build
 ```
 
-## macOS 悬浮启动器
+## macOS 悬浮启动器（测试中）
 
-可以把平台打包成一个轻量的 macOS 悬浮启动器。它不嵌入阅读页面，只负责按需启动本地服务并打开默认浏览器。
+可以把平台打包成一个轻量的 macOS 悬浮启动器。它不嵌入阅读页面，只负责按需启动本地服务并打开默认浏览器。该模式仍在测试，日常使用建议优先采用上方的终端启动方式。
 
 构建完整应用入口：
 
