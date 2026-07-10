@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  Columns2,
   Copy,
   Eye,
   ExternalLink,
@@ -245,7 +246,7 @@ type ViewportSize = {
 type ReaderPanelPlacement = "top" | "bottom";
 type ReaderMode = "preview" | "edit";
 type EditorSaveState = "idle" | "loading" | "saving" | "saved" | "error";
-type ReaderControlAction = "back" | "previous" | "next" | "refresh" | "mode" | "save" | "openExternal" | "fileSwitcher";
+type ReaderControlAction = "back" | "previous" | "next" | "refresh" | "mode" | "save" | "openExternal" | "fileSwitcher" | "multiView";
 
 type StoredReaderControlState = {
   position: Point;
@@ -265,7 +266,8 @@ const READER_CONTROL_ACTIONS: Array<{ id: ReaderControlAction; label: string }> 
   { id: "mode", label: "预览与编辑切换" },
   { id: "save", label: "保存修改" },
   { id: "openExternal", label: "新标签打开" },
-  { id: "fileSwitcher", label: "文件切换器" }
+  { id: "fileSwitcher", label: "文件切换器" },
+  { id: "multiView", label: "多文件阅览" }
 ];
 
 const HoverTooltipContext = createContext<HoverTooltipContextValue>({
@@ -335,6 +337,17 @@ function setSelectedPathInLocation(relativePath: string | null) {
   window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
 }
 
+function replaceSelectedPathInLocation(relativePath: string | null) {
+  const url = new URL(window.location.href);
+  if (relativePath) {
+    url.searchParams.set("file", relativePath);
+  } else {
+    url.searchParams.delete("file");
+  }
+  window.history.replaceState({}, "", url);
+  window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+}
+
 function formatSize(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -358,6 +371,15 @@ function getViewportSize(): ViewportSize {
     width: window.innerWidth,
     height: window.innerHeight
   };
+}
+
+function subscribeViewportWidth(onStoreChange: () => void) {
+  window.addEventListener("resize", onStoreChange);
+  return () => window.removeEventListener("resize", onStoreChange);
+}
+
+function getViewportWidth() {
+  return window.innerWidth;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -609,7 +631,8 @@ function getDefaultReaderControlSettings(): ReaderControlSettings {
       mode: true,
       save: true,
       openExternal: true,
-      fileSwitcher: true
+      fileSwitcher: true,
+      multiView: true
     }
   };
 }
@@ -622,7 +645,7 @@ function readReaderControlSettings(): ReaderControlSettings {
       return defaults;
     }
     const parsed = JSON.parse(raw) as Partial<ReaderControlSettings>;
-    const visibleActions = parsed.visibleActions ?? {};
+    const visibleActions: Partial<Record<ReaderControlAction, boolean>> = parsed.visibleActions ?? {};
     return {
       closeOnOutsideClick: typeof parsed.closeOnOutsideClick === "boolean"
         ? parsed.closeOnOutsideClick
@@ -1720,6 +1743,7 @@ function App() {
           navigationItems={filteredItems.length ? filteredItems : items}
           onBack={returnToLibrary}
           onOpen={openItem}
+          onReplacePrimary={replaceSelectedPathInLocation}
           onRefresh={refresh}
           onSave={saveContent}
         />
@@ -2890,7 +2914,6 @@ function TopicTreeNode({
           onClick={() => onTopicChange(node.path)}
         >
           <span className="topic-main">
-            <Folder aria-hidden="true" />
             <span className="topic-name">{nodeLabel}</span>
           </span>
         </button>
@@ -2964,14 +2987,13 @@ function TopicTreeNode({
                   onMouseEnter={() => tooltip.show(item.title)}
                   onMouseLeave={tooltip.hide}
                 >
-                  <span className="topic-fold-placeholder" aria-hidden="true" />
+                  <FileIcon className="file-type-icon" item={item} />
                   <button
                     className="topic-select"
                     type="button"
                     onClick={() => onFileSelect(item.relativePath)}
                   >
                     <span className="topic-main">
-                      <FileIcon className="file-type-icon" item={item} />
                       <span className="topic-name">{item.title}</span>
                     </span>
                   </button>
@@ -3148,9 +3170,295 @@ type ReaderProps = {
   navigationItems: LibraryItem[];
   onBack: () => void;
   onOpen: (relativePath: string) => void;
+  onReplacePrimary: (relativePath: string) => void;
   onRefresh: () => void;
   onSave: (relativePath: string, content: string) => Promise<LibraryContentResponse>;
 };
+
+type ReaderPaneDefinition = {
+  id: string;
+  relativePath: string | null;
+  weight: number;
+};
+
+type PendingReaderAction =
+  | { type: "change"; paneId: string; relativePath: string; dirtyPaneIds: string[] }
+  | { type: "close"; paneId: string; dirtyPaneIds: string[] }
+  | { type: "exit"; dirtyPaneIds: string[] };
+
+type PendingReaderActionInput =
+  | { type: "change"; paneId: string; relativePath: string }
+  | { type: "close"; paneId: string }
+  | { type: "exit" };
+
+type ReaderPaneProps = Omit<ReaderProps, "onReplacePrimary"> & {
+  canAddPane: boolean;
+  canClose: boolean;
+  id: string;
+  isMulti: boolean;
+  isPrimary: boolean;
+  onAddPane: () => void;
+  onClose: () => void;
+  onDirtyChange: (id: string, dirty: boolean) => void;
+  onRegisterSave: (id: string, save: (() => Promise<boolean>) | null) => void;
+};
+
+let readerPaneSequence = 0;
+
+function createReaderPane(item: LibraryItem | null, weight = 1): ReaderPaneDefinition {
+  readerPaneSequence += 1;
+  return {
+    id: `reader-pane-${readerPaneSequence}`,
+    relativePath: item?.relativePath ?? null,
+    weight
+  };
+}
+
+function normalizeReaderPaneWeights(panes: ReaderPaneDefinition[]) {
+  if (!panes.length) {
+    return panes;
+  }
+  const total = panes.reduce((sum, pane) => sum + pane.weight, 0) || panes.length;
+  return panes.map((pane) => ({ ...pane, weight: pane.weight / total }));
+}
+
+function Reader({ item, navigationItems, onBack, onReplacePrimary, onRefresh, onSave }: ReaderProps) {
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const saveHandlersRef = useRef(new Map<string, () => Promise<boolean>>());
+  const resizeStateRef = useRef<{
+    index: number;
+    pointerId: number;
+    startX: number;
+    startWeights: number[];
+  } | null>(null);
+  const [panes, setPanes] = useState<ReaderPaneDefinition[]>(() => [createReaderPane(item)]);
+  const [dirtyPaneIds, setDirtyPaneIds] = useState<Set<string>>(() => new Set());
+  const [pendingAction, setPendingAction] = useState<PendingReaderAction | null>(null);
+  const [primaryPathToSync, setPrimaryPathToSync] = useState<string | null>(null);
+  const viewportWidth = useSyncExternalStore(subscribeViewportWidth, getViewportWidth, () => 0);
+  const maxPaneCount = 4;
+  const minimumPaneWidth = 280;
+  const canAddPane = panes.length < maxPaneCount
+    && viewportWidth >= minimumPaneWidth * (panes.length + 1) + panes.length * 8;
+
+  useEffect(() => {
+    setPanes((current) => current[0]?.relativePath === item.relativePath ? current : [createReaderPane(item)]);
+  }, [item]);
+
+  useEffect(() => {
+    if (!primaryPathToSync) {
+      return;
+    }
+    onReplacePrimary(primaryPathToSync);
+    setPrimaryPathToSync(null);
+  }, [onReplacePrimary, primaryPathToSync]);
+
+  const registerSave = useCallback((id: string, save: (() => Promise<boolean>) | null) => {
+    if (save) {
+      saveHandlersRef.current.set(id, save);
+      return;
+    }
+    saveHandlersRef.current.delete(id);
+  }, []);
+
+  const updateDirty = useCallback((id: string, dirty: boolean) => {
+    setDirtyPaneIds((current) => {
+      const next = new Set(current);
+      if (dirty) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const addPane = useCallback(() => {
+    if (!canAddPane) {
+      return;
+    }
+    setPanes((current) => normalizeReaderPaneWeights([...current, createReaderPane(null)]));
+  }, [canAddPane]);
+
+  const applyAction = useCallback((action: PendingReaderAction) => {
+    if (action.type === "exit") {
+      onBack();
+      return;
+    }
+
+    if (action.type === "change") {
+      const isPrimary = panes[0]?.id === action.paneId;
+      setPanes((current) => current.map((pane) => {
+        if (pane.id !== action.paneId) {
+          return pane;
+        }
+        return { ...pane, relativePath: action.relativePath };
+      }));
+      if (isPrimary) {
+        setPrimaryPathToSync(action.relativePath);
+      }
+      return;
+    }
+
+    const paneIndex = panes.findIndex((pane) => pane.id === action.paneId);
+    const next = panes.filter((pane) => pane.id !== action.paneId);
+    if (!next.length || (paneIndex === 0 && !next[0].relativePath)) {
+      return;
+    }
+    setPanes(normalizeReaderPaneWeights(next));
+    if (paneIndex === 0 && next[0].relativePath) {
+      setPrimaryPathToSync(next[0].relativePath);
+    }
+  }, [onBack, panes]);
+
+  const requestAction = useCallback((action: PendingReaderActionInput) => {
+    const relevantPaneIds = action.type === "exit"
+      ? [...dirtyPaneIds]
+      : dirtyPaneIds.has(action.paneId) ? [action.paneId] : [];
+    const nextAction = { ...action, dirtyPaneIds: relevantPaneIds } as PendingReaderAction;
+    if (!relevantPaneIds.length) {
+      applyAction(nextAction);
+      return;
+    }
+    setPendingAction(nextAction);
+  }, [applyAction, dirtyPaneIds]);
+
+  const saveAndApplyPendingAction = useCallback(async () => {
+    if (!pendingAction) {
+      return;
+    }
+    const results = await Promise.all(pendingAction.dirtyPaneIds.map(async (id) => {
+      const save = saveHandlersRef.current.get(id);
+      return save ? await save() : true;
+    }));
+    if (results.every(Boolean)) {
+      const action = pendingAction;
+      setPendingAction(null);
+      applyAction(action);
+    }
+  }, [applyAction, pendingAction]);
+
+  const beginResize = useCallback((index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!workspaceRef.current || event.button !== 0) {
+      return;
+    }
+    resizeStateRef.current = {
+      index,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWeights: panes.map((pane) => pane.weight)
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [panes]);
+
+  const updateResize = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const resizeState = resizeStateRef.current;
+    const workspace = workspaceRef.current;
+    if (!resizeState || !workspace || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+    const usableWidth = workspace.clientWidth - (panes.length - 1) * 8;
+    if (usableWidth < minimumPaneWidth * panes.length) {
+      return;
+    }
+    const leftWeight = resizeState.startWeights[resizeState.index];
+    const rightWeight = resizeState.startWeights[resizeState.index + 1];
+    const minimumWeight = minimumPaneWidth / usableWidth;
+    const delta = Math.min(
+      Math.max((event.clientX - resizeState.startX) / usableWidth, minimumWeight - leftWeight),
+      rightWeight - minimumWeight
+    );
+    setPanes((current) => current.map((pane, index) => {
+      if (index === resizeState.index) {
+        return { ...pane, weight: leftWeight + delta };
+      }
+      if (index === resizeState.index + 1) {
+        return { ...pane, weight: rightWeight - delta };
+      }
+      return pane;
+    }));
+  }, [panes.length]);
+
+  const endResize = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const resizeState = resizeStateRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+    resizeStateRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const paneItems = useMemo(() => new Map(navigationItems.map((candidate) => [candidate.relativePath, candidate])), [navigationItems]);
+
+  return (
+    <div className="reader-shell reader-workspace" ref={workspaceRef}>
+      {panes.map((pane, index) => {
+        const paneItem = pane.relativePath ? paneItems.get(pane.relativePath) ?? (pane.relativePath === item.relativePath ? item : null) : null;
+        const canClose = panes.length > 1 && (index > 0 || panes.slice(1).some((candidate) => candidate.relativePath));
+        const paneStyle = { flexGrow: pane.weight, flexBasis: 0 };
+        const requestPaneChange = (relativePath: string) => requestAction({ type: "change", paneId: pane.id, relativePath });
+        const requestPaneClose = () => requestAction({ type: "close", paneId: pane.id });
+
+        return (
+          <div className="reader-pane-group" key={`${pane.id}:${pane.relativePath ?? "empty"}`} style={paneStyle}>
+            {paneItem ? (
+              <ReaderPane
+                canAddPane={canAddPane}
+                canClose={canClose}
+                id={pane.id}
+                isMulti={panes.length > 1}
+                isPrimary={index === 0}
+                item={paneItem}
+                navigationItems={navigationItems}
+                onAddPane={addPane}
+                onBack={() => requestAction({ type: "exit" })}
+                onClose={requestPaneClose}
+                onDirtyChange={updateDirty}
+                onOpen={requestPaneChange}
+                onRefresh={onRefresh}
+                onRegisterSave={registerSave}
+                onSave={onSave}
+              />
+            ) : (
+              <EmptyReaderPane
+                canClose={canClose}
+                navigationItems={navigationItems}
+                onClose={requestPaneClose}
+                onOpen={requestPaneChange}
+              />
+            )}
+            {index < panes.length - 1 ? (
+              <button
+                className="reader-pane-divider"
+                type="button"
+                aria-label={`调整第 ${index + 1} 和第 ${index + 2} 个分屏的宽度`}
+                onPointerDown={(event) => beginResize(index, event)}
+                onPointerMove={updateResize}
+                onPointerUp={endResize}
+                onPointerCancel={endResize}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+      {pendingAction ? (
+        <ReaderUnsavedDialog
+          dirtyPaneCount={pendingAction.dirtyPaneIds.length}
+          isExit={pendingAction.type === "exit"}
+          onCancel={() => setPendingAction(null)}
+          onDiscard={() => {
+            const action = pendingAction;
+            setPendingAction(null);
+            applyAction(action);
+          }}
+          onSave={() => void saveAndApplyPendingAction()}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 function isEditableReaderItem(item: LibraryItem) {
   return item.kind === "html" || item.kind === "markdown";
@@ -3171,7 +3479,23 @@ function editorSaveLabel(state: EditorSaveState) {
   }
 }
 
-function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: ReaderProps) {
+function ReaderPane({
+  canAddPane,
+  canClose,
+  id,
+  isMulti,
+  isPrimary,
+  item,
+  navigationItems,
+  onAddPane,
+  onBack,
+  onClose,
+  onDirtyChange,
+  onOpen,
+  onRefresh,
+  onRegisterSave,
+  onSave
+}: ReaderPaneProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const canEdit = isEditableReaderItem(item);
   const [readerMode, setReaderMode] = useState<ReaderMode>("preview");
@@ -3278,13 +3602,15 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
 
   const saveCurrentContent = useCallback(async () => {
     if (!canEdit || saveState === "loading" || !hasUnsavedChanges) {
-      return;
+      return true;
     }
 
     try {
       await queueSave(editorContentRef.current);
+      return true;
     } catch {
       // 保留错误状态，允许用户继续修改后再次手动保存。
+      return false;
     }
   }, [canEdit, hasUnsavedChanges, queueSave, saveState]);
 
@@ -3311,6 +3637,16 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
     setSaveState(content === lastSavedContentRef.current ? "saved" : "idle");
   }, []);
 
+  useEffect(() => {
+    onDirtyChange(id, hasUnsavedChanges);
+    return () => onDirtyChange(id, false);
+  }, [hasUnsavedChanges, id, onDirtyChange]);
+
+  useEffect(() => {
+    onRegisterSave(id, saveCurrentContent);
+    return () => onRegisterSave(id, null);
+  }, [id, onRegisterSave, saveCurrentContent]);
+
   const handleReaderKey = useEffectEvent((event: KeyboardEvent) => {
     const target = event.target;
     if (target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"))) {
@@ -3332,32 +3668,84 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
   });
 
   useEffect(() => {
+    if (!isPrimary) {
+      return;
+    }
     const handleKeyDown = (event: KeyboardEvent) => {
       handleReaderKey(event);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isPrimary]);
 
   return (
-    <div className="reader-shell">
-      <ReaderControls
-        canEdit={canEdit}
-        isOpen={isControlsOpen}
-        item={item}
-        mode={readerMode}
-        navigationItems={navigationItems}
-        next={next}
-        previous={previous}
-        hasUnsavedChanges={hasUnsavedChanges}
-        saveState={saveState}
-        onBack={leaveReader}
-        onOpen={navigateReader}
-        onRefresh={onRefresh}
-        onSave={() => void saveCurrentContent()}
-        onToggleMode={changeReaderMode}
-        onToggleOpen={setIsControlsOpen}
-      />
+    <section className="reader-pane" data-multi={isMulti ? "true" : undefined}>
+      {isPrimary ? (
+        <ReaderControls
+          canAddPane={canAddPane}
+          canEdit={canEdit}
+          isOpen={isControlsOpen}
+          item={item}
+          mode={readerMode}
+          navigationItems={navigationItems}
+          next={next}
+          previous={previous}
+          hasUnsavedChanges={hasUnsavedChanges}
+          saveState={saveState}
+          onAddPane={onAddPane}
+          onBack={leaveReader}
+          onOpen={navigateReader}
+          onRefresh={onRefresh}
+          onSave={() => void saveCurrentContent()}
+          onToggleMode={changeReaderMode}
+          onToggleOpen={setIsControlsOpen}
+        />
+      ) : null}
+      {isMulti ? (
+        <header className="reader-pane-header">
+          <MotionSelect
+            ariaLabel="切换此分屏的文件"
+            className="reader-pane-select"
+            maxVisibleItems={8}
+            options={navigationItems.map((candidate) => ({ value: candidate.relativePath, label: candidate.title }))}
+            value={item.relativePath}
+            onChange={navigateReader}
+          />
+          {canEdit ? (
+            <button
+              className="icon-button"
+              type="button"
+              title={readerMode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
+              aria-label={readerMode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
+              onClick={changeReaderMode}
+            >
+              {readerMode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
+            </button>
+          ) : null}
+          {canEdit && readerMode === "edit" ? (
+            <button
+              className="icon-button reader-save-button"
+              type="button"
+              title={hasUnsavedChanges ? "保存修改" : "没有待保存的修改"}
+              aria-label="保存修改"
+              disabled={!hasUnsavedChanges || saveState === "loading" || saveState === "saving"}
+              onClick={() => void saveCurrentContent()}
+            >
+              <Save aria-hidden="true" />
+            </button>
+          ) : null}
+          <button
+            className="icon-button"
+            type="button"
+            title="关闭此分屏"
+            aria-label="关闭此分屏"
+            disabled={!canClose}
+            onClick={onClose}
+          >
+            <X aria-hidden="true" />
+          </button>
+        </header>
+      ) : null}
       {item.kind === "html" && htmlPreviewSource && !editorError ? (
         <HtmlRichPreview
           item={item}
@@ -3374,11 +3762,117 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
       ) : (
         <ReaderSurface item={item} key={`${item.relativePath}:${item.mtimeMs}`} />
       )}
-    </div>
+    </section>
+  );
+}
+
+function EmptyReaderPane({
+  canClose,
+  navigationItems,
+  onClose,
+  onOpen
+}: {
+  canClose: boolean;
+  navigationItems: LibraryItem[];
+  onClose: () => void;
+  onOpen: (relativePath: string) => void;
+}) {
+  const options = useMemo<Array<SelectOption<string>>>(() => [
+    { value: "", label: "选择要阅读的文件" },
+    ...navigationItems.map((item) => ({ value: item.relativePath, label: item.title }))
+  ], [navigationItems]);
+
+  return (
+    <section className="reader-pane reader-pane-empty" data-multi="true">
+      <header className="reader-pane-header">
+        <span className="reader-pane-empty-label">新分屏</span>
+        <button
+          className="icon-button"
+          type="button"
+          title="关闭此分屏"
+          aria-label="关闭此分屏"
+          disabled={!canClose}
+          onClick={onClose}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </header>
+      <div className="reader-pane-empty-content">
+        <Columns2 aria-hidden="true" />
+        <div>
+          <p className="eyebrow">多文件阅览</p>
+          <h1>选择要并排阅读的文件</h1>
+          <p>每个分屏可以独立预览、编辑和保存。</p>
+        </div>
+        <MotionSelect
+          ariaLabel="选择要阅读的文件"
+          className="reader-pane-picker"
+          maxVisibleItems={8}
+          options={options}
+          value=""
+          onChange={(relativePath) => {
+            if (relativePath) {
+              onOpen(relativePath);
+            }
+          }}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ReaderUnsavedDialog({
+  dirtyPaneCount,
+  isExit,
+  onCancel,
+  onDiscard,
+  onSave
+}: {
+  dirtyPaneCount: number;
+  isExit: boolean;
+  onCancel: () => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+    return () => {
+      if (dialog?.open) {
+        dialog.close();
+      }
+    };
+  }, []);
+
+  return createPortal(
+    <dialog
+      ref={dialogRef}
+      className="reader-unsaved-dialog"
+      aria-labelledby="reader-unsaved-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onCancel();
+      }}
+    >
+      <p className="eyebrow">未保存修改</p>
+      <h2 id="reader-unsaved-title">{isExit ? "离开前保存修改？" : "继续前保存修改？"}</h2>
+      <p>{dirtyPaneCount === 1 ? "当前分屏有未保存的修改。" : `有 ${dirtyPaneCount} 个分屏含未保存的修改。`}</p>
+      <footer>
+        <button className="button" type="button" onClick={onCancel}>取消</button>
+        <button className="button" type="button" onClick={onDiscard}>放弃修改</button>
+        <button className="button primary" type="button" onClick={onSave}>保存后继续</button>
+      </footer>
+    </dialog>,
+    document.body
   );
 }
 
 type ReaderControlsProps = {
+  canAddPane: boolean;
   canEdit: boolean;
   hasUnsavedChanges: boolean;
   isOpen: boolean;
@@ -3388,6 +3882,7 @@ type ReaderControlsProps = {
   next: LibraryItem | null;
   previous: LibraryItem | null;
   saveState: EditorSaveState;
+  onAddPane: () => void;
   onBack: () => void;
   onOpen: (relativePath: string) => void;
   onRefresh: () => void;
@@ -3820,6 +4315,19 @@ function ReaderControls(props: ReaderControlsProps) {
                       variants={actionButtonVariants}
                     >
                       <RefreshCw aria-hidden="true" />
+                    </m.button>
+                  ) : null}
+                  {settings.visibleActions.multiView ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title={props.canAddPane ? "添加一个文件分屏" : "已达到分屏数量或宽度限制"}
+                      aria-label="添加一个文件分屏"
+                      disabled={!props.canAddPane}
+                      onClick={props.onAddPane}
+                      variants={actionButtonVariants}
+                    >
+                      <Columns2 aria-hidden="true" />
                     </m.button>
                   ) : null}
                   {settings.visibleActions.mode && props.canEdit ? (
