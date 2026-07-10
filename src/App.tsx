@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  Copy,
   ExternalLink,
   File,
   FileArchive,
@@ -15,12 +16,15 @@ import {
   FileText,
   FileType2,
   Folder,
+  FolderPlus,
   Home,
   ListFilter,
   Menu,
   Presentation,
   RefreshCw,
   Search,
+  Tags,
+  Trash2,
   Upload,
   X
 } from "lucide-react";
@@ -40,16 +44,22 @@ import {
   useState,
   useSyncExternalStore
 } from "react";
+import { createPortal } from "react-dom";
 import type { Transition } from "framer-motion";
 import type {
   DragEvent as ReactDragEvent,
   KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
 import type {
+  LibraryCreateFolderResponse,
+  LibraryDeleteFileResponse,
   LibraryItem,
   LibraryKind,
   LibraryMoveResponse,
+  LibraryNativeOpenMode,
+  LibraryOpenResponse,
   LibraryNode,
   LibraryRevealResponse,
   LibraryResponse,
@@ -66,17 +76,38 @@ type TopicOption = {
 };
 
 type UploadState = {
-  status: "idle" | "dragging" | "uploading" | "moving" | "success" | "error";
+  status: "idle" | "dragging" | "uploading" | "moving" | "creating" | "deleting" | "success" | "error";
   targetPath: string;
   message: string;
 };
 
 type TreeDisplayMode = "folders" | "all";
 type TreeDragAction = "upload" | "move";
+type ExternalOpenMode = "tab" | LibraryNativeOpenMode;
+type OpenModeDefaults = Partial<Record<FileVisualKind, ExternalOpenMode>>;
 
 type DragTargetState = {
   path: string;
   action: TreeDragAction;
+};
+
+type TreeContextTarget =
+  | {
+    kind: "folder";
+    path: string;
+    label: string;
+  }
+  | {
+    kind: "file";
+    path: string;
+    parentPath: string;
+    label: string;
+  };
+
+type TreeContextMenuState = {
+  x: number;
+  y: number;
+  target: TreeContextTarget;
 };
 
 type TreeFileDragPayload = {
@@ -101,6 +132,11 @@ type SelectOption<TValue extends string> = {
 };
 
 type FileVisualKind = "archive" | "html" | "image" | "markdown" | "other" | "pdf" | "presentation" | "sheet" | "text" | "word";
+type DetailTagId = "childFolders" | "custom" | "fileCount" | "kind" | "location" | "modified" | "size";
+type DetailTag = {
+  id: DetailTagId;
+  label: string;
+};
 
 type HoverTooltipContextValue = {
   hide: () => void;
@@ -133,7 +169,24 @@ const SORT_OPTIONS: Array<SelectOption<SortMode>> = [
   { value: "title", label: "标题排序" },
   { value: "type", label: "类型排序" }
 ];
+const EXTERNAL_OPEN_MODE_LABELS: Record<ExternalOpenMode, string> = {
+  tab: "新标签页",
+  system: "系统默认应用",
+  wps: "WPS"
+};
+const DETAIL_TAG_OPTIONS: Array<SelectOption<DetailTagId>> = [
+  { value: "kind", label: "类型" },
+  { value: "location", label: "位置" },
+  { value: "size", label: "大小" },
+  { value: "modified", label: "更新时间" },
+  { value: "fileCount", label: "文件数量" },
+  { value: "childFolders", label: "子文件夹" },
+  { value: "custom", label: "自定义标签" }
+];
+const DETAIL_TAG_IDS = new Set<DetailTagId>(DETAIL_TAG_OPTIONS.map((option) => option.value));
+const DEFAULT_DETAIL_TAGS = new Set<DetailTagId>(DETAIL_TAG_OPTIONS.map((option) => option.value));
 const EMPTY_ITEMS: LibraryItem[] = [];
+const EMPTY_NODES: LibraryNode[] = [];
 const EMPTY_TOPICS: TopicOption[] = [];
 const TREE_FILE_DRAG_TYPE = "application/x-document-gallery-file+json";
 const LOCATION_CHANGE_EVENT = "document-gallery-location-change";
@@ -156,6 +209,10 @@ const TEXT_CONTENT_CACHE = new Map<string, Promise<string>>();
 const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
+const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
+const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
+const TREE_CONTEXT_MENU_WIDTH = 232;
+const TREE_CONTEXT_MENU_HEIGHT = 384;
 const READER_FLOAT_SIZE = 56;
 const READER_PANEL_HEIGHT = 76;
 const READER_PANEL_MOBILE_HEIGHT = 124;
@@ -291,15 +348,15 @@ function areSetsEqual<TValue>(first: Set<TValue>, second: Set<TValue>) {
 
 function collectFolderPaths(node: LibraryNode) {
   const paths: string[] = [];
-  const visit = (current: LibraryNode) => {
-    if (current.path) {
+  const visit = (current: LibraryNode, isRoot = false) => {
+    if (isRoot || current.path) {
       paths.push(current.path);
     }
     for (const child of current.children) {
       visit(child);
     }
   };
-  visit(node);
+  visit(node, true);
   return paths;
 }
 
@@ -374,6 +431,72 @@ function saveSidebarWidth(width: number) {
     );
   } catch {
     // Width resizing still works for the current session if storage is unavailable.
+  }
+}
+
+function isExternalOpenMode(value: unknown): value is ExternalOpenMode {
+  return value === "tab" || value === "system" || value === "wps";
+}
+
+function readOpenModeDefaults(): OpenModeDefaults {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(FILE_OPEN_DEFAULTS_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    const defaults: OpenModeDefaults = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (isExternalOpenMode(value)) {
+        defaults[key as FileVisualKind] = value;
+      }
+    }
+    return defaults;
+  } catch {
+    return {};
+  }
+}
+
+function writeOpenModeDefaults(defaults: OpenModeDefaults) {
+  try {
+    window.localStorage.setItem(FILE_OPEN_DEFAULTS_STORAGE_KEY, JSON.stringify(defaults));
+  } catch {
+    // Opening still works with the built-in default if storage is unavailable.
+  }
+}
+
+function readVisibleDetailTags(): Set<DetailTagId> {
+  if (typeof window === "undefined") {
+    return new Set(DEFAULT_DETAIL_TAGS);
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DETAIL_TAGS_STORAGE_KEY);
+    if (!raw) {
+      return new Set(DEFAULT_DETAIL_TAGS);
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return new Set(DEFAULT_DETAIL_TAGS);
+    }
+    return new Set(parsed.filter((value): value is DetailTagId => DETAIL_TAG_IDS.has(value as DetailTagId)));
+  } catch {
+    return new Set(DEFAULT_DETAIL_TAGS);
+  }
+}
+
+function writeVisibleDetailTags(visibleTags: Set<DetailTagId>) {
+  try {
+    window.localStorage.setItem(DETAIL_TAGS_STORAGE_KEY, JSON.stringify(Array.from(visibleTags)));
+  } catch {
+    // Detail cards keep the in-memory selection if storage is unavailable.
   }
 }
 
@@ -473,6 +596,19 @@ function flattenTopics(node: LibraryNode, depth = 0): TopicOption[] {
   return [current, ...node.children.flatMap((child) => flattenTopics(child, depth + 1))];
 }
 
+function findTreeNodeByPath(node: LibraryNode, targetPath: string): LibraryNode | null {
+  if (node.path === targetPath) {
+    return node;
+  }
+  for (const child of node.children) {
+    const match = findTreeNodeByPath(child, targetPath);
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
+
 function sortItems(items: LibraryItem[], sortMode: SortMode) {
   const copy = [...items];
   if (sortMode === "recent") {
@@ -490,12 +626,8 @@ function sortItems(items: LibraryItem[], sortMode: SortMode) {
   return copy;
 }
 
-function isTopicMatch(item: LibraryItem, activeTopic: string) {
-  if (!activeTopic) {
-    return true;
-  }
-  const itemTopic = item.topicPath.join("/");
-  return itemTopic === activeTopic || itemTopic.startsWith(`${activeTopic}/`);
+function isDirectTopicMatch(item: LibraryItem, activeTopic: string) {
+  return item.topicPath.join("/") === activeTopic;
 }
 
 function matchesQuery(item: LibraryItem, query: string) {
@@ -507,6 +639,27 @@ function matchesQuery(item: LibraryItem, query: string) {
     .join(" ")
     .toLowerCase()
     .includes(normalized);
+}
+
+function folderMatchesQuery(node: LibraryNode, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  return [node.name, node.path].join(" ").toLowerCase().includes(normalized);
+}
+
+function filterDetailTags(tags: DetailTag[], visibleTags: Set<DetailTagId>) {
+  return tags.filter((tag) => visibleTags.has(tag.id));
+}
+
+function folderDetailTags(folder: LibraryNode): DetailTag[] {
+  return [
+    { id: "kind", label: "文件夹" },
+    { id: "location", label: folder.path || "根目录" },
+    { id: "fileCount", label: `${folder.count} 个文件` },
+    { id: "childFolders", label: `${folder.children.length} 个子文件夹` }
+  ];
 }
 
 function normalizedExtension(item: LibraryItem) {
@@ -539,6 +692,16 @@ function fileDisplayLabel(item: LibraryItem) {
   return KIND_LABELS[item.kind];
 }
 
+function fileDetailTags(item: LibraryItem): DetailTag[] {
+  return [
+    { id: "kind", label: fileDisplayLabel(item) },
+    { id: "location", label: topicLabel(item.topicPath) },
+    { id: "size", label: formatSize(item.size) },
+    { id: "modified", label: formatDate(item.mtimeMs) },
+    ...(item.tags ?? []).map((tag) => ({ id: "custom" as const, label: tag }))
+  ];
+}
+
 function fileVisualKind(item: LibraryItem): FileVisualKind {
   const extension = normalizedExtension(item);
   if (WPS_TEXT_EXTENSIONS.has(extension)) {
@@ -569,6 +732,28 @@ function fileVisualKind(item: LibraryItem): FileVisualKind {
     return "text";
   }
   return "other";
+}
+
+function fileOpenDefaultKey(item: LibraryItem) {
+  return fileVisualKind(item);
+}
+
+function isPreviewableItem(item: LibraryItem) {
+  return item.kind === "html"
+    || item.kind === "pdf"
+    || item.kind === "image"
+    || item.kind === "markdown"
+    || item.kind === "text";
+}
+
+function isWpsOpenableItem(item: LibraryItem) {
+  const visualKind = fileVisualKind(item);
+  return visualKind === "word" || visualKind === "sheet" || visualKind === "presentation";
+}
+
+function getDefaultOpenMode(item: LibraryItem, defaults: OpenModeDefaults): ExternalOpenMode {
+  const mode = defaults[fileOpenDefaultKey(item)] ?? "tab";
+  return mode === "wps" && !isWpsOpenableItem(item) ? "tab" : mode;
 }
 
 function fileDisplayIcon(visualKind: FileVisualKind) {
@@ -639,6 +824,52 @@ function fileNameFromRelativePath(relativePath: string) {
 
 function dragTargetLabel(targetPath: string) {
   return targetPath ? targetPath : "根目录";
+}
+
+function parentPathFromRelativePath(relativePath: string) {
+  const parts = relativePath.split("/").filter(Boolean);
+  parts.pop();
+  return parts.join("/");
+}
+
+function folderPathWithAncestors(folderPath: string) {
+  const paths = [""];
+  let current = "";
+  for (const part of folderPath.split("/").filter(Boolean)) {
+    current = current ? `${current}/${part}` : part;
+    paths.push(current);
+  }
+  return paths;
+}
+
+function joinLibraryPath(root: string, relativePath: string) {
+  const normalizedRoot = root.replace(/[\\/]+$/, "");
+  if (!relativePath) {
+    return normalizedRoot || root;
+  }
+  const separator = root.includes("\\") ? "\\" : "/";
+  const normalizedRelativePath = relativePath.split("/").filter(Boolean).join(separator);
+  return normalizedRoot ? `${normalizedRoot}${separator}${normalizedRelativePath}` : normalizedRelativePath;
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-1000px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const didCopy = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!didCopy) {
+    throw new Error("复制路径失败");
+  }
 }
 
 function escapeDragHtml(value: string) {
@@ -1077,6 +1308,44 @@ function useLibrary() {
     return payload as LibraryMoveResponse;
   }, [checkForChanges]);
 
+  const createFolder = useCallback(async (parentPath: string, name: string) => {
+    const response = await fetch("/api/library/folder", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ parentPath, name })
+    });
+    const payload = await readJsonResponse<Partial<LibraryCreateFolderResponse> & { message?: string }>(
+      response,
+      "新建文件夹接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `新建文件夹失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryCreateFolderResponse;
+  }, [checkForChanges]);
+
+  const deleteFile = useCallback(async (relativePath: string) => {
+    const response = await fetch("/api/library/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath })
+    });
+    const payload = await readJsonResponse<Partial<LibraryDeleteFileResponse> & { message?: string }>(
+      response,
+      "删除接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `删除失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryDeleteFileResponse;
+  }, [checkForChanges]);
+
   const revealPath = useCallback(async (relativePath: string, kind: "file" | "folder") => {
     const response = await fetch("/api/library/reveal", {
       method: "POST",
@@ -1093,6 +1362,24 @@ function useLibrary() {
     }
 
     return payload as LibraryRevealResponse;
+  }, []);
+
+  const openFile = useCallback(async (relativePath: string, mode: LibraryNativeOpenMode) => {
+    const response = await fetch("/api/library/open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath, mode })
+    });
+    const payload = await readJsonResponse<Partial<LibraryOpenResponse> & { message?: string }>(
+      response,
+      "外部打开接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `外部打开失败：${response.status}`);
+    }
+
+    return payload as LibraryOpenResponse;
   }, []);
 
   useEffect(() => {
@@ -1120,26 +1407,38 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, refresh, moveFile, revealPath, uploadFiles };
+  return { library, isLoading, error, createFolder, deleteFile, refresh, moveFile, openFile, revealPath, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, refresh, moveFile, revealPath, uploadFiles } = useLibrary();
+  const { library, isLoading, error, createFolder, deleteFile, refresh, moveFile, openFile, revealPath, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
   const [treeMode, setTreeMode] = useState<TreeDisplayMode>("all");
   const [selectedTreeFilePath, setSelectedTreeFilePath] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("library");
+  const [openModeDefaults, setOpenModeDefaults] = useState<OpenModeDefaults>(() => readOpenModeDefaults());
+  const [visibleDetailTags, setVisibleDetailTags] = useState<Set<DetailTagId>>(() => readVisibleDetailTags());
   const selectedPath = useSyncExternalStore(subscribeSelectedPath, getSelectedPathFromLocation, () => null);
 
   const items = library?.items ?? EMPTY_ITEMS;
   const topics = useMemo(() => library ? flattenTopics(library.tree) : EMPTY_TOPICS, [library]);
+  const activeTreeNode = useMemo(
+    () => library ? findTreeNodeByPath(library.tree, activeTopic) : null,
+    [activeTopic, library]
+  );
   const selectedTreeFile = useMemo(
     () => selectedTreeFilePath ? items.find((item) => item.relativePath === selectedTreeFilePath) ?? null : null,
     [items, selectedTreeFilePath]
   );
   const effectiveSelectedTreeFilePath = selectedTreeFile ? selectedTreeFilePath : null;
+  const filteredFolders = useMemo(() => {
+    if (selectedTreeFile || !activeTreeNode) {
+      return EMPTY_NODES;
+    }
+    return activeTreeNode.children.filter((node) => folderMatchesQuery(node, query));
+  }, [activeTreeNode, query, selectedTreeFile]);
 
   const filteredItems = useMemo(() => {
     if (selectedTreeFile) {
@@ -1148,7 +1447,7 @@ function App() {
 
     const filtered = items.filter((item) => {
       const kindMatches = activeKind === "all" || item.kind === activeKind;
-      return kindMatches && isTopicMatch(item, activeTopic) && matchesQuery(item, query);
+      return kindMatches && isDirectTopicMatch(item, activeTopic) && matchesQuery(item, query);
     });
     return sortItems(filtered, sortMode);
   }, [activeKind, activeTopic, items, query, selectedTreeFile, sortMode]);
@@ -1158,9 +1457,59 @@ function App() {
     [items, selectedPath]
   );
 
-  const openItem = useCallback((relativePath: string) => {
-    setSelectedPathInLocation(relativePath);
+  const openExternalItem = useCallback(async (item: LibraryItem, mode?: ExternalOpenMode) => {
+    const nextMode = mode ?? getDefaultOpenMode(item, openModeDefaults);
+    if (nextMode === "tab") {
+      window.open(item.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    await openFile(item.relativePath, nextMode);
+  }, [openFile, openModeDefaults]);
+
+  const setDefaultOpenMode = useCallback((item: LibraryItem, mode: ExternalOpenMode) => {
+    if (mode === "wps" && !isWpsOpenableItem(item)) {
+      return;
+    }
+    setOpenModeDefaults((current) => {
+      const next = {
+        ...current,
+        [fileOpenDefaultKey(item)]: mode
+      };
+      writeOpenModeDefaults(next);
+      return next;
+    });
   }, []);
+
+  const toggleDetailTag = useCallback((tagId: DetailTagId) => {
+    setVisibleDetailTags((current) => {
+      const next = new Set(current);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      writeVisibleDetailTags(next);
+      return next;
+    });
+  }, []);
+
+  const showAllDetailTags = useCallback(() => {
+    const next = new Set(DEFAULT_DETAIL_TAGS);
+    writeVisibleDetailTags(next);
+    setVisibleDetailTags(next);
+  }, []);
+
+  const openItem = useCallback((relativePath: string) => {
+    const item = items.find((candidate) => candidate.relativePath === relativePath);
+    if (item && !isPreviewableItem(item)) {
+      void openExternalItem(item).catch((openError) => {
+        window.alert(openError instanceof Error ? openError.message : "外部打开失败");
+      });
+      return;
+    }
+    setSelectedPathInLocation(relativePath);
+  }, [items, openExternalItem]);
 
   const selectTopic = useCallback((topic: string) => {
     setSelectedTreeFilePath(null);
@@ -1207,29 +1556,39 @@ function App() {
         activeKind={activeKind}
         activeTopic={activeTopic}
         error={error}
+        filteredFolders={filteredFolders}
         filteredItems={filteredItems}
         generatedAt={library?.generatedAt ?? null}
         isLoading={isLoading}
         items={items}
+        libraryRoot={library?.root ?? ""}
         missingPath={selectedPath}
+        openModeDefaults={openModeDefaults}
         query={query}
         sortMode={sortMode}
         tree={library?.tree ?? null}
         treeMode={treeMode}
         topics={topics}
+        visibleDetailTags={visibleDetailTags}
         selectedTreeFile={selectedTreeFile}
         selectedTreeFilePath={effectiveSelectedTreeFilePath}
         onClearMissing={returnToLibrary}
         onKindChange={setActiveKind}
+        onOpenExternal={openExternalItem}
         onOpen={openItem}
         onQueryChange={setQuery}
         onRefresh={refresh}
+        onRevealPath={revealPath}
+        onSetDefaultOpenMode={setDefaultOpenMode}
+        onShowAllDetailTags={showAllDetailTags}
         onSelectTreeFile={selectTreeFile}
         onSortChange={setSortMode}
         onTopicChange={selectTopic}
+        onToggleDetailTag={toggleDetailTag}
         onTreeModeChange={changeTreeMode}
+        onCreateFolder={createFolder}
+        onDeleteFile={deleteFile}
         onMoveFile={moveFile}
-        onRevealPath={revealPath}
         onUploadFiles={uploadFiles}
       />
     </HoverTooltipProvider>
@@ -1240,11 +1599,14 @@ type LibraryHomeProps = {
   activeKind: LibraryKind | "all";
   activeTopic: string;
   error: string | null;
+  filteredFolders: LibraryNode[];
   filteredItems: LibraryItem[];
   generatedAt: string | null;
   isLoading: boolean;
   items: LibraryItem[];
+  libraryRoot: string;
   missingPath: string | null;
+  openModeDefaults: OpenModeDefaults;
   query: string;
   selectedTreeFile: LibraryItem | null;
   selectedTreeFilePath: string | null;
@@ -1252,17 +1614,24 @@ type LibraryHomeProps = {
   tree: LibraryNode | null;
   treeMode: TreeDisplayMode;
   topics: TopicOption[];
+  visibleDetailTags: Set<DetailTagId>;
   onClearMissing: () => void;
   onKindChange: (kind: LibraryKind | "all") => void;
   onOpen: (relativePath: string) => void;
+  onOpenExternal: (item: LibraryItem, mode?: ExternalOpenMode) => Promise<void>;
   onQueryChange: (query: string) => void;
   onRefresh: () => void;
+  onRevealPath: (relativePath: string, kind: "file" | "folder") => Promise<LibraryRevealResponse>;
+  onSetDefaultOpenMode: (item: LibraryItem, mode: ExternalOpenMode) => void;
+  onShowAllDetailTags: () => void;
   onSelectTreeFile: (relativePath: string) => void;
   onSortChange: (sortMode: SortMode) => void;
   onTopicChange: (topic: string) => void;
+  onToggleDetailTag: (tagId: DetailTagId) => void;
   onTreeModeChange: (mode: TreeDisplayMode) => void;
+  onCreateFolder: (parentPath: string, name: string) => Promise<LibraryCreateFolderResponse>;
+  onDeleteFile: (relativePath: string) => Promise<LibraryDeleteFileResponse>;
   onMoveFile: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
-  onRevealPath: (relativePath: string, kind: "file" | "folder") => Promise<LibraryRevealResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
 
@@ -1274,18 +1643,29 @@ function LibraryHome(props: LibraryHomeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sidebarPanelRef = useRef<HTMLElement>(null);
   const sidebarResizeRef = useRef<SidebarResizeState | null>(null);
+  const treeContextMenuRef = useRef<HTMLDivElement>(null);
   const [dragTarget, setDragTarget] = useState<DragTargetState | null>(null);
   const [draggedFilePath, setDraggedFilePath] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.collapsed));
   const [knownFolderPaths, setKnownFolderPaths] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.known));
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() => readStoredSidebarWidth());
   const [isSidebarResizing, setIsSidebarResizing] = useState(false);
+  const [treeContextMenu, setTreeContextMenu] = useState<TreeContextMenuState | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>({
     status: "idle",
     targetPath: "",
     message: "选择或拖入文件"
   });
-  const { onMoveFile, onRevealPath, onTopicChange, onUploadFiles } = props;
+  const {
+    onCreateFolder,
+    onDeleteFile,
+    onMoveFile,
+    onOpenExternal,
+    onRevealPath,
+    onSetDefaultOpenMode,
+    onTopicChange,
+    onUploadFiles
+  } = props;
   const readableCount = props.items.filter((item) => item.kind !== "other").length;
   const activeTopicName = props.topics.find((topic) => topic.path === props.activeTopic)?.name ?? "全部主题";
   const topicName = props.selectedTreeFile?.title ?? activeTopicName;
@@ -1304,6 +1684,15 @@ function LibraryHome(props: LibraryHomeProps) {
     return next;
   }, [props.items]);
   const allFolderPaths = useMemo(() => props.tree ? collectFolderPaths(props.tree) : [], [props.tree]);
+  const contextMenuFile = useMemo(() => {
+    if (treeContextMenu?.target.kind !== "file") {
+      return null;
+    }
+    return props.items.find((item) => item.relativePath === treeContextMenu.target.path) ?? null;
+  }, [props.items, treeContextMenu]);
+  const contextMenuDefaultMode = contextMenuFile
+    ? getDefaultOpenMode(contextMenuFile, props.openModeDefaults)
+    : "tab";
   const sidebarLayoutStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (sidebarWidth === null) {
       return undefined;
@@ -1319,7 +1708,7 @@ function LibraryHome(props: LibraryHomeProps) {
       }
     }
     for (const path of allFolderPaths) {
-      if (!initialTreeCollapseRef.current?.hasStoredState || !knownFolderPaths.has(path)) {
+      if (path && (!initialTreeCollapseRef.current?.hasStoredState || !knownFolderPaths.has(path))) {
         next.add(path);
       }
     }
@@ -1342,7 +1731,7 @@ function LibraryHome(props: LibraryHomeProps) {
         }
       }
       for (const path of allFolderPaths) {
-        if (!hasStoredState || !knownFolderPaths.has(path)) {
+        if (path && (!hasStoredState || !knownFolderPaths.has(path))) {
           next.add(path);
         }
       }
@@ -1360,6 +1749,34 @@ function LibraryHome(props: LibraryHomeProps) {
     }
     writeTreeCollapseStorage(collapsedFolders, knownFolderPaths);
   }, [collapsedFolders, knownFolderPaths, props.tree]);
+
+  useEffect(() => {
+    if (!treeContextMenu) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && treeContextMenuRef.current?.contains(target)) {
+        return;
+      }
+      setTreeContextMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTreeContextMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [treeContextMenu]);
 
   const uploadToTopic = useCallback(async (targetPath: string, files: FileList | File[]) => {
     const visibleFiles = visibleFilesFromList(files);
@@ -1503,6 +1920,169 @@ function LibraryHome(props: LibraryHomeProps) {
     setCollapsedFolders(new Set(allFolderPaths));
   }, [allFolderPaths]);
 
+  const expandFolderPath = useCallback((folderPath: string) => {
+    const pathsToExpand = new Set(folderPathWithAncestors(folderPath));
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      for (const path of pathsToExpand) {
+        next.delete(path);
+      }
+      return areSetsEqual(current, next) ? current : next;
+    });
+  }, []);
+
+  const openContentFolder = useCallback((folderPath: string) => {
+    expandFolderPath(folderPath);
+    onTopicChange(folderPath);
+  }, [expandFolderPath, onTopicChange]);
+
+  const openTreeContextMenu = useCallback((target: TreeContextTarget, event: ReactMouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const x = clamp(event.clientX, 8, Math.max(8, window.innerWidth - TREE_CONTEXT_MENU_WIDTH - 8));
+    const y = clamp(event.clientY, 8, Math.max(8, window.innerHeight - TREE_CONTEXT_MENU_HEIGHT - 8));
+    setTreeContextMenu({ x, y, target });
+  }, []);
+
+  const openFileFromContext = useCallback((mode: ExternalOpenMode) => {
+    if (!contextMenuFile) {
+      return;
+    }
+    setTreeContextMenu(null);
+    void onOpenExternal(contextMenuFile, mode).catch((openError) => {
+      setUploadState({
+        status: "error",
+        targetPath: contextMenuFile.topicPath.join("/"),
+        message: openError instanceof Error ? openError.message : "外部打开失败"
+      });
+    });
+  }, [contextMenuFile, onOpenExternal]);
+
+  const setDefaultOpenModeFromContext = useCallback((mode: ExternalOpenMode) => {
+    if (!contextMenuFile) {
+      return;
+    }
+    if (mode === "wps" && !isWpsOpenableItem(contextMenuFile)) {
+      return;
+    }
+    onSetDefaultOpenMode(contextMenuFile, mode);
+    setUploadState({
+      status: "success",
+      targetPath: contextMenuFile.topicPath.join("/"),
+      message: `已将 ${EXTERNAL_OPEN_MODE_LABELS[mode]} 设为${fileDisplayLabel(contextMenuFile)}默认打开方式`
+    });
+    setTreeContextMenu(null);
+  }, [contextMenuFile, onSetDefaultOpenMode]);
+
+  const createFolderFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target) {
+      return;
+    }
+
+    const parentPath = target.kind === "folder" ? target.path : target.parentPath;
+    setTreeContextMenu(null);
+    const name = window.prompt(`在${dragTargetLabel(parentPath)}中新建文件夹`, "新建文件夹")?.trim();
+    if (name === undefined) {
+      return;
+    }
+    if (!name) {
+      setUploadState({
+        status: "error",
+        targetPath: parentPath,
+        message: "文件夹名称不能为空"
+      });
+      return;
+    }
+
+    setUploadState({
+      status: "creating",
+      targetPath: parentPath,
+      message: `正在${dragTargetLabel(parentPath)}中新建文件夹`
+    });
+
+    void (async () => {
+      try {
+        const result = await onCreateFolder(parentPath, name);
+        expandFolderPath(parentPath);
+        setUploadState({
+          status: "success",
+          targetPath: result.folder.relativePath,
+          message: `已新建 ${result.folder.name}`
+        });
+        onTopicChange(result.folder.relativePath);
+      } catch (createError) {
+        setUploadState({
+          status: "error",
+          targetPath: parentPath,
+          message: createError instanceof Error ? createError.message : "新建文件夹失败"
+        });
+      }
+    })();
+  }, [expandFolderPath, onCreateFolder, onTopicChange, treeContextMenu]);
+
+  const copyPathFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target) {
+      return;
+    }
+
+    const pathToCopy = joinLibraryPath(props.libraryRoot, target.path);
+    setTreeContextMenu(null);
+    void copyTextToClipboard(pathToCopy)
+      .then(() => {
+        setUploadState({
+          status: "success",
+          targetPath: target.path,
+          message: `已复制路径：${pathToCopy}`
+        });
+      })
+      .catch((copyError) => {
+        setUploadState({
+          status: "error",
+          targetPath: target.path,
+          message: copyError instanceof Error ? copyError.message : "复制路径失败"
+        });
+      });
+  }, [props.libraryRoot, treeContextMenu]);
+
+  const deleteFileFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target || target.kind !== "file") {
+      return;
+    }
+
+    setTreeContextMenu(null);
+    if (!window.confirm(`删除文件“${target.label}”？`)) {
+      return;
+    }
+
+    setUploadState({
+      status: "deleting",
+      targetPath: target.parentPath,
+      message: `正在删除 ${target.label}`
+    });
+
+    void (async () => {
+      try {
+        const result = await onDeleteFile(target.path);
+        expandFolderPath(target.parentPath);
+        setUploadState({
+          status: "success",
+          targetPath: target.parentPath,
+          message: `已删除 ${result.deleted.title}`
+        });
+        onTopicChange(target.parentPath);
+      } catch (deleteError) {
+        setUploadState({
+          status: "error",
+          targetPath: target.parentPath,
+          message: deleteError instanceof Error ? deleteError.message : "删除失败"
+        });
+      }
+    })();
+  }, [expandFolderPath, onDeleteFile, onTopicChange, treeContextMenu]);
+
   const revealPathInManager = useCallback((relativePath: string, kind: "file" | "folder") => {
     void (async () => {
       try {
@@ -1583,6 +2163,79 @@ function LibraryHome(props: LibraryHomeProps) {
     setSidebarWidth(nextWidth);
     saveSidebarWidth(nextWidth);
   }, [sidebarWidth]);
+
+  const treeContextMenuLayer = treeContextMenu && typeof document !== "undefined"
+    ? createPortal(
+      <div
+        ref={treeContextMenuRef}
+        className="tree-context-menu"
+        role="menu"
+        style={{ left: treeContextMenu.x, top: treeContextMenu.y }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        {contextMenuFile ? (
+          <>
+            <div className="tree-context-menu-group">
+              <button type="button" role="menuitem" onClick={() => openFileFromContext("tab")}>
+                <ExternalLink aria-hidden="true" />
+                <span>新标签页打开</span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => openFileFromContext("system")}>
+                <File aria-hidden="true" />
+                <span>系统默认应用打开</span>
+              </button>
+              {isWpsOpenableItem(contextMenuFile) ? (
+                <button type="button" role="menuitem" onClick={() => openFileFromContext("wps")}>
+                  <FileType2 aria-hidden="true" />
+                  <span>WPS 打开</span>
+                </button>
+              ) : null}
+            </div>
+            <div className="tree-context-menu-group">
+              {(["tab", "system", "wps"] as ExternalOpenMode[]).map((mode) => {
+                const isWpsModeUnavailable = mode === "wps" && !isWpsOpenableItem(contextMenuFile);
+                if (isWpsModeUnavailable) {
+                  return null;
+                }
+                const isDefault = contextMenuDefaultMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setDefaultOpenModeFromContext(mode)}
+                  >
+                    {isDefault ? <Check aria-hidden="true" /> : <span className="menu-icon-placeholder" aria-hidden="true" />}
+                    <span>默认：{EXTERNAL_OPEN_MODE_LABELS[mode]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+        <div className="tree-context-menu-group">
+          <button type="button" role="menuitem" onClick={copyPathFromContext}>
+            <Copy aria-hidden="true" />
+            <span>复制路径</span>
+          </button>
+          <button type="button" role="menuitem" onClick={createFolderFromContext}>
+            <FolderPlus aria-hidden="true" />
+            <span>新建文件夹</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={treeContextMenu.target.kind !== "file"}
+            onClick={deleteFileFromContext}
+          >
+            <Trash2 aria-hidden="true" />
+            <span>删除文件</span>
+          </button>
+        </div>
+      </div>,
+      document.body
+    )
+    : null;
 
   return (
     <div className="app-shell" data-sidebar-resizing={isSidebarResizing ? "true" : undefined}>
@@ -1697,6 +2350,7 @@ function LibraryHome(props: LibraryHomeProps) {
               onFileDragEnd={endFileDrag}
               onFileDragStart={startFileDrag}
               onFileSelect={props.onSelectTreeFile}
+              onContextMenu={openTreeContextMenu}
               onRevealPath={revealPathInManager}
               onTopicChange={props.onTopicChange}
               onToggleFolder={toggleFolder}
@@ -1723,86 +2377,107 @@ function LibraryHome(props: LibraryHomeProps) {
         </aside>
 
         <section className="library-content" aria-label="文件列表">
-          <div className="library-hero">
-            <div>
-              <p className="eyebrow">Library</p>
-              <h1>所有文件，一个入口。</h1>
-            </div>
-            <p>
-              HTML 在平台内全屏打开，PDF、图片、Markdown 和文本直接预览，其余文件保留打开入口。
-            </p>
-          </div>
+          <div className="library-controls">
+            <div className="filter-strip">
+              <label className="search-field">
+                <Search aria-hidden="true" />
+                <input
+                  value={props.query}
+                  placeholder="搜索标题、路径或标签"
+                  onChange={(event) => props.onQueryChange(event.target.value)}
+                />
+              </label>
 
-          <div className="filter-strip">
-            <label className="search-field">
-              <Search aria-hidden="true" />
-              <input
-                value={props.query}
-                placeholder="搜索标题、路径或标签"
-                onChange={(event) => props.onQueryChange(event.target.value)}
+              <MotionSelect
+                ariaLabel="排序方式"
+                className="select-field"
+                icon={<ListFilter aria-hidden="true" />}
+                maxVisibleItems={4}
+                options={SORT_OPTIONS}
+                value={props.sortMode}
+                onChange={props.onSortChange}
               />
-            </label>
+            </div>
 
-            <MotionSelect
-              ariaLabel="排序方式"
-              className="select-field"
-              icon={<ListFilter aria-hidden="true" />}
-              maxVisibleItems={4}
-              options={SORT_OPTIONS}
-              value={props.sortMode}
-              onChange={props.onSortChange}
+            <div className="kind-tabs" aria-label="文件类型筛选">
+              {KIND_OPTIONS.map((kind) => (
+                <button
+                  className={kind === props.activeKind ? "kind-tab active" : "kind-tab"}
+                  key={kind}
+                  type="button"
+                  onClick={() => props.onKindChange(kind)}
+                >
+                  {KIND_LABELS[kind]}
+                </button>
+              ))}
+            </div>
+
+            <DetailTagFilter
+              visibleTags={props.visibleDetailTags}
+              onShowAll={props.onShowAllDetailTags}
+              onToggle={props.onToggleDetailTag}
             />
+
+            {props.missingPath ? (
+              <div className="notice">
+                <span>未找到文件：{props.missingPath}</span>
+                <button type="button" onClick={props.onClearMissing}>返回列表</button>
+              </div>
+            ) : null}
+
+            {props.selectedTreeFile ? (
+              <div className="notice">
+                <span>文件树已选中：{props.selectedTreeFile.title}</span>
+                <button type="button" onClick={() => props.onTopicChange(props.activeTopic)}>显示当前目录</button>
+              </div>
+            ) : null}
+
+            {props.error ? <div className="notice error">{props.error}</div> : null}
           </div>
 
-          <div className="kind-tabs" aria-label="文件类型筛选">
-            {KIND_OPTIONS.map((kind) => (
-              <button
-                className={kind === props.activeKind ? "kind-tab active" : "kind-tab"}
-                key={kind}
-                type="button"
-                onClick={() => props.onKindChange(kind)}
-              >
-                {KIND_LABELS[kind]}
-              </button>
-            ))}
+          <div className="file-list-scroll">
+            {props.isLoading ? (
+              <div className="file-grid">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div className="file-card skeleton" key={index} />
+                ))}
+              </div>
+            ) : props.filteredFolders.length || props.filteredItems.length ? (
+              <div className="file-grid">
+                {props.filteredFolders.map((folder) => (
+                  <FolderCard
+                    folder={folder}
+                    key={`folder:${folder.path}`}
+                    visibleTags={props.visibleDetailTags}
+                    onOpen={openContentFolder}
+                  />
+                ))}
+                {props.filteredItems.map((item) => (
+                  <FileCard
+                    item={item}
+                    key={item.id}
+                    visibleTags={props.visibleDetailTags}
+                    onContextMenu={(event) => openTreeContextMenu({
+                      kind: "file",
+                      path: item.relativePath,
+                      parentPath: parentPathFromRelativePath(item.relativePath),
+                      label: item.title
+                    }, event)}
+                    onOpen={props.onOpen}
+                    onReveal={(relativePath) => revealPathInManager(relativePath, "file")}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <h2>这里暂时没有匹配文件</h2>
+                <p>调整搜索、主题或文件类型后，列表会立即更新。</p>
+              </div>
+            )}
           </div>
-
-          {props.missingPath ? (
-            <div className="notice">
-              <span>未找到文件：{props.missingPath}</span>
-              <button type="button" onClick={props.onClearMissing}>返回列表</button>
-            </div>
-          ) : null}
-
-          {props.selectedTreeFile ? (
-            <div className="notice">
-              <span>文件树已选中：{props.selectedTreeFile.title}</span>
-              <button type="button" onClick={() => props.onTopicChange(props.activeTopic)}>显示当前目录</button>
-            </div>
-          ) : null}
-
-          {props.error ? <div className="notice error">{props.error}</div> : null}
-
-          {props.isLoading ? (
-            <div className="file-grid">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div className="file-card skeleton" key={index} />
-              ))}
-            </div>
-          ) : props.filteredItems.length ? (
-            <div className="file-grid">
-              {props.filteredItems.map((item) => (
-                <FileCard item={item} key={item.id} onOpen={props.onOpen} />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <h2>这里暂时没有匹配文件</h2>
-              <p>调整搜索、主题或文件类型后，列表会立即更新。</p>
-            </div>
-          )}
         </section>
       </main>
+      {treeContextMenuLayer}
     </div>
   );
 }
@@ -1822,6 +2497,7 @@ type TopicTreeProps = {
   onFileDragEnd: () => void;
   onFileDragStart: (item: LibraryItem, event: ReactDragEvent<HTMLElement>) => void;
   onFileSelect: (relativePath: string) => void;
+  onContextMenu: (target: TreeContextTarget, event: ReactMouseEvent<HTMLElement>) => void;
   onRevealPath: (relativePath: string, kind: "file" | "folder") => void;
   onTopicChange: (topic: string) => void;
   onToggleFolder: (folderPath: string) => void;
@@ -1851,6 +2527,7 @@ function TopicTree(props: TopicTreeProps) {
         onFileDragEnd={props.onFileDragEnd}
         onFileDragStart={props.onFileDragStart}
         onFileSelect={props.onFileSelect}
+        onContextMenu={props.onContextMenu}
         onRevealPath={props.onRevealPath}
         onTopicChange={props.onTopicChange}
         onToggleFolder={props.onToggleFolder}
@@ -1880,6 +2557,7 @@ function TopicTreeNode({
   onFileDragEnd,
   onFileDragStart,
   onFileSelect,
+  onContextMenu,
   onRevealPath,
   onTopicChange,
   onToggleFolder
@@ -1889,7 +2567,7 @@ function TopicTreeNode({
   const isActive = node.path === activeTopic;
   const isDropTarget = dragTarget?.path === node.path;
   const files = mode === "all" ? filesByTopic.get(node.path) ?? EMPTY_ITEMS : EMPTY_ITEMS;
-  const canCollapse = !isRoot && (node.children.length > 0 || files.length > 0);
+  const canCollapse = node.children.length > 0 || files.length > 0;
   const isCollapsed = canCollapse && collapsedFolders.has(node.path);
   const nodeLabel = isRoot ? "全部主题" : node.name;
 
@@ -1908,6 +2586,11 @@ function TopicTreeNode({
         onDragLeave={onDragLeave}
         onDrop={(event) => onDropToTopic(node.path, event)}
         onFocus={() => tooltip.show(nodeLabel)}
+        onContextMenu={(event) => onContextMenu({
+          kind: "folder",
+          path: node.path,
+          label: nodeLabel
+        }, event)}
         onMouseEnter={() => tooltip.show(nodeLabel)}
         onMouseLeave={tooltip.hide}
       >
@@ -1967,6 +2650,7 @@ function TopicTreeNode({
               onFileDragEnd={onFileDragEnd}
               onFileDragStart={onFileDragStart}
               onFileSelect={onFileSelect}
+              onContextMenu={onContextMenu}
               onRevealPath={onRevealPath}
               onTopicChange={onTopicChange}
               onToggleFolder={onToggleFolder}
@@ -1993,6 +2677,12 @@ function TopicTreeNode({
               onDragStart={(event) => onFileDragStart(item, event)}
               onDrop={(event) => event.stopPropagation()}
               onFocus={() => tooltip.show(item.title)}
+              onContextMenu={(event) => onContextMenu({
+                kind: "file",
+                path: item.relativePath,
+                parentPath: parentPathFromRelativePath(item.relativePath),
+                label: item.title
+              }, event)}
               onMouseEnter={() => tooltip.show(item.title)}
               onMouseLeave={tooltip.hide}
             >
@@ -2025,27 +2715,150 @@ function TopicTreeNode({
   );
 }
 
-function FileCard({ item, onOpen }: { item: LibraryItem; onOpen: (relativePath: string) => void }) {
+function DetailTagFilter({
+  visibleTags,
+  onShowAll,
+  onToggle
+}: {
+  visibleTags: Set<DetailTagId>;
+  onShowAll: () => void;
+  onToggle: (tagId: DetailTagId) => void;
+}) {
+  const allVisible = DETAIL_TAG_OPTIONS.every((option) => visibleTags.has(option.value));
+
   return (
-    <article className="file-card">
-      <button className="file-card-button" type="button" onClick={() => onOpen(item.relativePath)}>
-        <FileIcon className="file-icon" item={item} />
+    <div className="detail-tag-filter" aria-label="详情标签筛选">
+      <button className="detail-tag-filter-title" type="button" aria-haspopup="true">
+        <Tags aria-hidden="true" />
+        <span>详情标签</span>
+        <ChevronDown className="detail-tag-filter-chevron" aria-hidden="true" />
+      </button>
+      <div className="detail-tag-popover">
+        <div className="detail-tag-options">
+          {DETAIL_TAG_OPTIONS.map((option) => {
+            const isVisible = visibleTags.has(option.value);
+            return (
+              <button
+                className={isVisible ? "detail-tag-option active" : "detail-tag-option"}
+                key={option.value}
+                type="button"
+                aria-pressed={isVisible}
+                onClick={() => onToggle(option.value)}
+              >
+                {isVisible ? <Check aria-hidden="true" /> : <span className="detail-tag-option-dot" aria-hidden="true" />}
+                <span>{option.label}</span>
+              </button>
+            );
+          })}
+          <button
+            className="detail-tag-option"
+            type="button"
+            disabled={allVisible}
+            onClick={onShowAll}
+          >
+            <span className="detail-tag-option-dot" aria-hidden="true" />
+            <span>全部</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailTagList({ tags }: { tags: DetailTag[] }) {
+  if (!tags.length) {
+    return null;
+  }
+
+  return (
+    <div className="file-meta">
+      {tags.map((tag, index) => <span key={`${tag.id}-${tag.label}-${index}`}>{tag.label}</span>)}
+    </div>
+  );
+}
+
+function FolderCard({
+  folder,
+  visibleTags,
+  onOpen
+}: {
+  folder: LibraryNode;
+  visibleTags: Set<DetailTagId>;
+  onOpen: (folderPath: string) => void;
+}) {
+  const detailTags = filterDetailTags(folderDetailTags(folder), visibleTags);
+
+  return (
+    <article className="file-card folder-card">
+      <button className="file-card-button" type="button" onClick={() => onOpen(folder.path)}>
+        <span className="folder-card-icon">
+          <Folder aria-hidden="true" />
+        </span>
+        <span className="file-main">
+          <FullText className="file-title" text={folder.name}>{folder.name}</FullText>
+          <FullText className="file-path" text={folder.path}>{folder.path || "根目录"}</FullText>
+        </span>
+      </button>
+      <DetailTagList tags={detailTags} />
+    </article>
+  );
+}
+
+function FileCardPreview({ item, visualKind }: { item: LibraryItem; visualKind: FileVisualKind }) {
+  if (visualKind === "image") {
+    return (
+      <span className="file-image-preview" aria-hidden="true">
+        <img src={item.url} alt="" loading="lazy" decoding="async" />
+      </span>
+    );
+  }
+
+  return <FileIcon className="file-icon" item={item} />;
+}
+
+function FileCard({
+  item,
+  visibleTags,
+  onContextMenu,
+  onOpen,
+  onReveal
+}: {
+  item: LibraryItem;
+  visibleTags: Set<DetailTagId>;
+  onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
+  onOpen: (relativePath: string) => void;
+  onReveal: (relativePath: string) => void;
+}) {
+  const detailTags = filterDetailTags(fileDetailTags(item), visibleTags);
+  const visualKind = fileVisualKind(item);
+
+  return (
+    <article className="file-card" onContextMenu={onContextMenu}>
+      <button
+        className="file-card-reveal"
+        type="button"
+        aria-label={`在资源管理器中显示${item.title}`}
+        title="在资源管理器中显示"
+        onClick={(event) => {
+          event.stopPropagation();
+          onReveal(item.relativePath);
+        }}
+      >
+        <ExternalLink aria-hidden="true" />
+      </button>
+      <button
+        className="file-card-button"
+        type="button"
+        data-preview={visualKind === "image" ? "image" : undefined}
+        onClick={() => onOpen(item.relativePath)}
+      >
+        <FileCardPreview item={item} visualKind={visualKind} />
         <span className="file-main">
           <FullText className="file-title" text={item.title}>{item.title}</FullText>
           <FullText className="file-path" text={item.relativePath}>{item.relativePath}</FullText>
         </span>
       </button>
-      <div className="file-meta">
-        <span>{fileDisplayLabel(item)}</span>
-        <span>{topicLabel(item.topicPath)}</span>
-        <span>{formatSize(item.size)}</span>
-        <span>{formatDate(item.mtimeMs)}</span>
-      </div>
-      {item.tags?.length ? (
-        <div className="tag-row">
-          {item.tags.map((tag) => <span key={tag}>{tag}</span>)}
-        </div>
-      ) : null}
+      <DetailTagList tags={detailTags} />
     </article>
   );
 }
@@ -2465,7 +3278,7 @@ function ReaderControls(props: ReaderControlsProps) {
 }
 
 function ReaderSurface({ item }: { item: LibraryItem }) {
-  if (item.kind === "html" || item.kind === "pdf") {
+  if (item.kind === "html") {
     return (
       <iframe
         className="reader-frame"
@@ -2476,10 +3289,32 @@ function ReaderSurface({ item }: { item: LibraryItem }) {
     );
   }
 
+  if (item.kind === "pdf") {
+    return (
+      <object
+        className="reader-frame"
+        data={item.url}
+        type="application/pdf"
+        aria-label={item.title}
+      >
+        <div className="unsupported-reader">
+          <div>
+            <p className="eyebrow">PDF</p>
+            <h1>{item.title}</h1>
+            <p>{item.relativePath}</p>
+            <a className="button primary" href={item.url} target="_blank" rel="noreferrer">
+              打开文件
+            </a>
+          </div>
+        </div>
+      </object>
+    );
+  }
+
   if (item.kind === "image") {
     return (
       <div className="reader-media">
-        <img src={item.url} alt={item.title} />
+        <img src={item.url} alt={item.title} decoding="async" />
       </div>
     );
   }

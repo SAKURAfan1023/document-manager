@@ -5,13 +5,21 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApiHandler } from "../server/index.mjs";
 import {
+  createLibraryFolder,
   createLibraryIndexState,
+  deleteLibraryFile,
   moveLibraryFile,
+  openLibraryFile,
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
   uploadLibraryFiles
 } from "../server/library.mjs";
+
+const PNG_SAMPLE = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l5F0TAAAAABJRU5ErkJggg==",
+  "base64"
+);
 
 let tempRoot;
 let libraryDir;
@@ -92,6 +100,34 @@ describe("scanLibrary", () => {
     expect(markdown?.topicPath).toEqual(["S1", "子主题"]);
   });
 
+  it("保留空文件夹在目录树中", async () => {
+    await fs.mkdir(path.join(libraryDir, "空目录"));
+
+    const result = await scanLibrary({ libraryDir, metaPath });
+    const emptyFolder = result.tree.children.find((node) => node.name === "空目录");
+
+    expect(emptyFolder).toMatchObject({
+      name: "空目录",
+      path: "空目录",
+      count: 0,
+      children: []
+    });
+  });
+
+  it("识别 PNG 图片并生成预览文件路径", async () => {
+    await fs.writeFile(path.join(libraryDir, "S1", "reference.png"), PNG_SAMPLE);
+
+    const result = await scanLibrary({ libraryDir, metaPath });
+    const image = result.items.find((item) => item.relativePath === "S1/reference.png");
+
+    expect(image).toMatchObject({
+      extension: "png",
+      kind: "image",
+      title: "reference",
+      url: "/files/S1/reference.png"
+    });
+  });
+
   it("阻止 library 目录之外的路径访问", () => {
     expect(resolveLibraryFile("../DESIGN.md", libraryDir)).toBeNull();
     expect(resolveLibraryFile("S1/s1-followup-plan.html", libraryDir)).toBe(
@@ -155,6 +191,40 @@ describe("uploadLibraryFiles", () => {
       targetPath: "../outside",
       files: [{ name: "x.txt", content: Buffer.from("x") }]
     })).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("createLibraryFolder", () => {
+  it("在目标目录创建文件夹并避免覆盖同名目录", async () => {
+    const result = await createLibraryFolder({
+      libraryDir,
+      parentPath: "S1",
+      name: "子主题"
+    });
+
+    expect(result).toEqual({
+      folder: {
+        relativePath: "S1/子主题 2",
+        name: "子主题 2"
+      }
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题 2"))).resolves.toMatchObject({
+      isDirectory: expect.any(Function)
+    });
+  });
+
+  it("拒绝非法名称和 library 外路径", async () => {
+    await expect(createLibraryFolder({
+      libraryDir,
+      parentPath: "../outside",
+      name: "新目录"
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(createLibraryFolder({
+      libraryDir,
+      parentPath: "S1",
+      name: ".hidden"
+    })).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 
@@ -270,6 +340,41 @@ describe("moveLibraryFile", () => {
   });
 });
 
+describe("deleteLibraryFile", () => {
+  it("删除文件并清理 metadata", async () => {
+    const result = await deleteLibraryFile({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题/说明.md"
+    });
+
+    expect(result).toEqual({
+      deleted: {
+        relativePath: "S1/子主题/说明.md",
+        title: "说明"
+      }
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("拒绝 library 外路径和目录目标", async () => {
+    await expect(deleteLibraryFile({
+      libraryDir,
+      metaPath,
+      relativePath: "../DESIGN.md"
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(deleteLibraryFile({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题"
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("revealLibraryPath", () => {
   it("解析文件和文件夹并调用资源管理器打开动作", async () => {
     const calls = [];
@@ -346,6 +451,83 @@ describe("revealLibraryPath", () => {
   });
 });
 
+describe("openLibraryFile", () => {
+  it("使用系统默认应用或 WPS 打开 library 内文件", async () => {
+    await fs.writeFile(path.join(libraryDir, "S1", "demo.docx"), "docx");
+    const calls = [];
+    const open = (absolutePath, mode) => calls.push({ absolutePath, mode });
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "S1/demo.docx",
+      mode: "system",
+      open
+    })).resolves.toEqual({
+      opened: {
+        relativePath: "S1/demo.docx",
+        mode: "system"
+      }
+    });
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "S1/demo.docx",
+      mode: "wps",
+      open
+    })).resolves.toEqual({
+      opened: {
+        relativePath: "S1/demo.docx",
+        mode: "wps"
+      }
+    });
+
+    expect(calls).toEqual([
+      {
+        absolutePath: path.join(libraryDir, "S1", "demo.docx"),
+        mode: "system"
+      },
+      {
+        absolutePath: path.join(libraryDir, "S1", "demo.docx"),
+        mode: "wps"
+      }
+    ]);
+  });
+
+  it("拒绝 library 外路径、目录目标、非法方式和非 Office WPS 打开", async () => {
+    const open = () => {
+      throw new Error("不应调用打开动作");
+    };
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "../DESIGN.md",
+      mode: "system",
+      open
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "S1/子主题",
+      mode: "system",
+      open
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "S1/s1-followup-plan.html",
+      mode: "bad",
+      open
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(openLibraryFile({
+      libraryDir,
+      relativePath: "S1/s1-followup-plan.html",
+      mode: "wps",
+      open
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("library API", () => {
   it("读取 status 不触发扫描或创建 library 目录", async () => {
     const unscannedLibraryDir = path.join(tempRoot, "unscanned-library");
@@ -359,6 +541,22 @@ describe("library API", () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({ changed: false, version: 0, changedAt: null });
       await expect(fs.stat(unscannedLibraryDir)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("返回 PNG 文件时使用 image/png 内容类型", async () => {
+    await fs.writeFile(path.join(libraryDir, "S1", "reference.png"), PNG_SAMPLE);
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/files/S1/reference.png`);
+      const body = Buffer.from(await response.arrayBuffer());
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(body).toEqual(PNG_SAMPLE);
     } finally {
       await server.close();
     }
@@ -431,6 +629,55 @@ describe("library API", () => {
     }
   });
 
+  it("新建文件夹和删除文件后 status 变更", async () => {
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const createResponse = await fetch(`${server.baseUrl}/api/library/folder`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          parentPath: "S1",
+          name: "新文件夹"
+        })
+      });
+
+      expect(createResponse.status).toBe(200);
+      expect(await createResponse.json()).toMatchObject({
+        folder: { relativePath: "S1/新文件夹", name: "新文件夹" },
+        version: 1
+      });
+
+      const deleteResponse = await fetch(`${server.baseUrl}/api/library/delete`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/子主题/说明.md"
+        })
+      });
+
+      expect(deleteResponse.status).toBe(200);
+      expect(await deleteResponse.json()).toMatchObject({
+        deleted: { relativePath: "S1/子主题/说明.md", title: "说明" },
+        version: 2
+      });
+
+      const dirtyStatus = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await dirtyStatus.json()).toMatchObject({ changed: true, version: 2 });
+
+      const libraryResponse = await fetch(`${server.baseUrl}/api/library`);
+      const library = await libraryResponse.json();
+      const s1Node = library.tree.children.find((node) => node.path === "S1");
+      expect(s1Node?.children.some((node) => node.path === "S1/新文件夹")).toBe(true);
+      expect(library.items.some((item) => item.relativePath === "S1/子主题/说明.md")).toBe(false);
+
+      const cleanStatus = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await cleanStatus.json()).toMatchObject({ changed: false, version: 2, changedAt: null });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("打开资源管理器接口转发相对路径和类型", async () => {
     const calls = [];
     const server = await createTestServer(createApiHandler({
@@ -468,6 +715,51 @@ describe("library API", () => {
         {
           relativePath: "S1/子主题",
           kind: "folder",
+          libraryDir
+        }
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("外部打开接口转发相对路径和打开方式", async () => {
+    const calls = [];
+    const server = await createTestServer(createApiHandler({
+      libraryDir,
+      metaPath,
+      openLibraryFile: async (payload) => {
+        calls.push(payload);
+        return {
+          opened: {
+            relativePath: payload.relativePath,
+            mode: payload.mode
+          }
+        };
+      }
+    }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/api/library/open`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/s1-followup-plan.html",
+          mode: "system"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        opened: {
+          relativePath: "S1/s1-followup-plan.html",
+          mode: "system"
+        }
+      });
+      expect(calls).toEqual([
+        {
+          relativePath: "S1/s1-followup-plan.html",
+          mode: "system",
           libraryDir
         }
       ]);

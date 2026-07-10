@@ -29,6 +29,31 @@ const KIND_BY_EXTENSION = new Map([
   [".yml", "text"]
 ]);
 
+const WPS_OPEN_EXTENSIONS = new Set([
+  ".doc",
+  ".docx",
+  ".dot",
+  ".dotx",
+  ".dps",
+  ".dpt",
+  ".et",
+  ".ett",
+  ".pot",
+  ".potx",
+  ".pps",
+  ".ppsx",
+  ".ppt",
+  ".pptx",
+  ".rtf",
+  ".wps",
+  ".wpt",
+  ".xls",
+  ".xlsm",
+  ".xlsx",
+  ".xlt",
+  ".xltx"
+]);
+
 export function getKind(extension) {
   return KIND_BY_EXTENSION.get(extension.toLowerCase()) ?? "other";
 }
@@ -64,6 +89,14 @@ function sanitizeUploadFileName(fileName) {
   return baseName;
 }
 
+function sanitizeFolderName(folderName) {
+  const baseName = path.basename(folderName || "").replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "").trim();
+  if (!baseName || baseName === "." || baseName === ".." || baseName.startsWith(".")) {
+    return null;
+  }
+  return baseName;
+}
+
 async function resolveAvailableFilePath(targetDir, fileName) {
   const parsed = path.parse(fileName);
   let candidate = path.join(targetDir, fileName);
@@ -73,6 +106,24 @@ async function resolveAvailableFilePath(targetDir, fileName) {
     try {
       await fs.access(candidate);
       candidate = path.join(targetDir, `${parsed.name} ${index}${parsed.ext}`);
+      index += 1;
+    } catch (error) {
+      if (error && error.code === "ENOENT") {
+        return candidate;
+      }
+      throw error;
+    }
+  }
+}
+
+async function resolveAvailableDirectoryPath(targetDir, folderName) {
+  let candidate = path.join(targetDir, folderName);
+  let index = 2;
+
+  while (true) {
+    try {
+      await fs.access(candidate);
+      candidate = path.join(targetDir, `${folderName} ${index}`);
       index += 1;
     } catch (error) {
       if (error && error.code === "ENOENT") {
@@ -159,7 +210,7 @@ function compareItems(a, b) {
   return a.title.localeCompare(b.title, "zh-CN");
 }
 
-function buildTree(items) {
+function buildTree(items, folderPaths = []) {
   const root = {
     name: "全部文件",
     path: "",
@@ -168,9 +219,9 @@ function buildTree(items) {
   };
   const nodeByPath = new Map([["", root]]);
 
-  for (const item of items) {
+  const ensureNode = (folderPath) => {
     let currentPath = "";
-    for (const part of item.topicPath) {
+    for (const part of folderPath.split("/").filter(Boolean)) {
       const nextPath = currentPath ? `${currentPath}/${part}` : part;
       if (!nodeByPath.has(nextPath)) {
         const node = {
@@ -182,6 +233,19 @@ function buildTree(items) {
         nodeByPath.set(nextPath, node);
         nodeByPath.get(currentPath).children.push(node);
       }
+      currentPath = nextPath;
+    }
+  };
+
+  for (const folderPath of folderPaths) {
+    ensureNode(folderPath);
+  }
+
+  for (const item of items) {
+    let currentPath = "";
+    for (const part of item.topicPath) {
+      const nextPath = currentPath ? `${currentPath}/${part}` : part;
+      ensureNode(nextPath);
       nodeByPath.get(nextPath).count += 1;
       currentPath = nextPath;
     }
@@ -200,34 +264,39 @@ async function walkDirectory({ libraryDir, currentDir, topicPath, meta }) {
     entries = await fs.readdir(currentDir, { withFileTypes: true });
   } catch (error) {
     if (error && error.code === "ENOENT") {
-      return [];
+      return { folders: [], items: [] };
     }
     throw error;
   }
 
   const itemGroups = await Promise.all(entries.map(async (entry) => {
     if (entry.name.startsWith(".")) {
-      return [];
+      return { folders: [], items: [] };
     }
 
     const absolutePath = path.join(currentDir, entry.name);
     if (entry.isDirectory()) {
-      return walkDirectory({
+      const relativePath = normalizeRelativePath(path.relative(libraryDir, absolutePath));
+      const nested = await walkDirectory({
         libraryDir,
         currentDir: absolutePath,
         topicPath: [...topicPath, entry.name],
         meta
       });
+      return {
+        folders: [relativePath, ...nested.folders],
+        items: nested.items
+      };
     }
 
     if (!entry.isFile()) {
-      return [];
+      return { folders: [], items: [] };
     }
 
     const relativePath = normalizeRelativePath(path.relative(libraryDir, absolutePath));
     const metaEntry = meta.items?.[relativePath];
     if (metaEntry?.hidden === true) {
-      return [];
+      return { folders: [], items: [] };
     }
 
     const stat = await fs.stat(absolutePath);
@@ -248,10 +317,13 @@ async function walkDirectory({ libraryDir, currentDir, topicPath, meta }) {
       order: undefined
     }, metaEntry);
 
-    return [item];
+    return { folders: [], items: [item] };
   }));
 
-  return itemGroups.flat();
+  return {
+    folders: itemGroups.flatMap((group) => group.folders),
+    items: itemGroups.flatMap((group) => group.items)
+  };
 }
 
 export async function scanLibrary(options = {}) {
@@ -260,7 +332,7 @@ export async function scanLibrary(options = {}) {
   await fs.mkdir(libraryDir, { recursive: true });
 
   const meta = await readMeta(metaPath);
-  const items = await walkDirectory({
+  const { folders, items } = await walkDirectory({
     libraryDir,
     currentDir: libraryDir,
     topicPath: [],
@@ -272,7 +344,7 @@ export async function scanLibrary(options = {}) {
   return {
     generatedAt: new Date().toISOString(),
     root: libraryDir,
-    tree: buildTree(items),
+    tree: buildTree(items, folders),
     items
   };
 }
@@ -357,6 +429,40 @@ function revealInFileManager(absolutePath, kind) {
   child.unref();
 }
 
+function launchExternalFile(absolutePath, mode) {
+  let command;
+  let args;
+
+  if (mode === "wps") {
+    if (process.platform === "darwin") {
+      command = "open";
+      args = ["-a", "WPS Office", absolutePath];
+    } else if (process.platform === "win32") {
+      command = "cmd.exe";
+      args = ["/c", "start", "", "wps", absolutePath];
+    } else {
+      command = "wps";
+      args = [absolutePath];
+    }
+  } else if (process.platform === "darwin") {
+    command = "open";
+    args = [absolutePath];
+  } else if (process.platform === "win32") {
+    command = "cmd.exe";
+    args = ["/c", "start", "", absolutePath];
+  } else {
+    command = "xdg-open";
+    args = [absolutePath];
+  }
+
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.on("error", () => {});
+  child.unref();
+}
+
 export async function uploadLibraryFiles(options = {}) {
   const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
   const targetDir = resolveLibraryDirectory(options.targetPath ?? "", libraryDir);
@@ -389,6 +495,45 @@ export async function uploadLibraryFiles(options = {}) {
   }
 
   return { uploaded };
+}
+
+export async function createLibraryFolder(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const parentDir = resolveLibraryDirectory(options.parentPath ?? "", libraryDir);
+  const folderName = sanitizeFolderName(options.name);
+
+  if (!parentDir) {
+    throw createLibraryError("新建目录不在 library 内", 403);
+  }
+
+  if (!folderName) {
+    throw createLibraryError("文件夹名称无效", 400);
+  }
+
+  let parentStat;
+  try {
+    parentStat = await fs.stat(parentDir);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("父目录不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!parentStat.isDirectory()) {
+    throw createLibraryError("父路径不是目录", 400);
+  }
+
+  const destination = await resolveAvailableDirectoryPath(parentDir, folderName);
+  await fs.mkdir(destination);
+  const relativePath = normalizeRelativePath(path.relative(libraryDir, destination));
+
+  return {
+    folder: {
+      relativePath,
+      name: path.basename(destination)
+    }
+  };
 }
 
 export async function revealLibraryPath(options = {}) {
@@ -426,6 +571,49 @@ export async function revealLibraryPath(options = {}) {
     revealed: {
       relativePath: normalizeRelativePath(path.relative(libraryDir, absolutePath)),
       kind
+    }
+  };
+}
+
+export async function openLibraryFile(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const mode = options.mode === "system" || options.mode === "wps" ? options.mode : null;
+  const absolutePath = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+
+  if (!mode) {
+    throw createLibraryError("打开方式无效", 400);
+  }
+
+  if (!absolutePath) {
+    throw createLibraryError("打开路径不在 library 内", 403);
+  }
+
+  let stat;
+  try {
+    stat = await fs.stat(absolutePath);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("文件不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!stat.isFile()) {
+    throw createLibraryError("只能打开文件", 400);
+  }
+
+  const extension = path.extname(absolutePath).toLowerCase();
+  if (mode === "wps" && !WPS_OPEN_EXTENSIONS.has(extension)) {
+    throw createLibraryError("WPS 打开仅支持 Office 文档", 400);
+  }
+
+  const open = typeof options.open === "function" ? options.open : launchExternalFile;
+  open(absolutePath, mode);
+
+  return {
+    opened: {
+      relativePath: normalizeRelativePath(path.relative(libraryDir, absolutePath)),
+      mode
     }
   };
 }
@@ -499,6 +687,46 @@ export async function moveLibraryFile(options = {}) {
       title: titleFromFileName(path.basename(destination))
     },
     changed: true
+  };
+}
+
+export async function deleteLibraryFile(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
+  const sourceFile = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+
+  if (!sourceFile) {
+    throw createLibraryError("删除路径不在 library 内", 403);
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.stat(sourceFile);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("文件不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!sourceStat.isFile()) {
+    throw createLibraryError("只能删除文件", 400);
+  }
+
+  const relativePath = normalizeRelativePath(path.relative(libraryDir, sourceFile));
+  await fs.rm(sourceFile);
+
+  const meta = await readMeta(metaPath);
+  if (meta.items && typeof meta.items === "object" && meta.items[relativePath]) {
+    delete meta.items[relativePath];
+    await writeMeta(metaPath, meta);
+  }
+
+  return {
+    deleted: {
+      relativePath,
+      title: titleFromFileName(path.basename(sourceFile))
+    }
   };
 }
 

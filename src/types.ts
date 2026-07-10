@@ -52,6 +52,31 @@ export type LibraryMoveResponse = {
   version: number;
 };
 
+export type LibraryCreateFolderResponse = {
+  folder: {
+    relativePath: string;
+    name: string;
+  };
+  version: number;
+};
+
+export type LibraryDeleteFileResponse = {
+  deleted: {
+    relativePath: string;
+    title: string;
+  };
+  version: number;
+};
+
+export type LibraryNativeOpenMode = "system" | "wps";
+
+export type LibraryOpenResponse = {
+  opened: {
+    relativePath: string;
+    mode: LibraryNativeOpenMode;
+  };
+};
+
 export type LibraryRevealResponse = {
   revealed: {
     relativePath: string;
