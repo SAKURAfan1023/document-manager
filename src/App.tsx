@@ -23,9 +23,7 @@ import {
   Home,
   ListFilter,
   Menu,
-  Minus,
   PenLine,
-  Plus,
   Presentation,
   RefreshCw,
   Save,
@@ -268,22 +266,6 @@ type ReaderControlSettings = {
   actionOrder: ReaderControlAction[];
 };
 
-type ReaderSettingsDrag = {
-  action: ReaderControlAction;
-  source: "library" | "template";
-  pointerId: number;
-  startX: number;
-  startY: number;
-  x: number;
-  y: number;
-  isDragging: boolean;
-};
-
-type ReaderSettingsDropTarget =
-  | { type: "template"; index: number }
-  | { type: "library" }
-  | null;
-
 const READER_CONTROL_ACTIONS: Array<{
   id: ReaderControlAction;
   label: string;
@@ -302,6 +284,23 @@ const READER_CONTROL_ACTIONS: Array<{
 ];
 
 const DEFAULT_READER_CONTROL_ACTION_ORDER: ReaderControlAction[] = ["back", "previous", "next", "fileSwitcher"];
+
+function isEditorControlAction(action: ReaderControlAction) {
+  return action === "mode" || action === "save";
+}
+
+function synchronizeEditorControlActions(actionOrder: ReaderControlAction[]) {
+  const firstEditorActionIndex = actionOrder.findIndex(isEditorControlAction);
+  if (firstEditorActionIndex < 0) {
+    return actionOrder;
+  }
+  return actionOrder.flatMap((action, index) => {
+    if (index === firstEditorActionIndex) {
+      return ["mode", "save"] as ReaderControlAction[];
+    }
+    return isEditorControlAction(action) ? [] : [action];
+  });
+}
 
 const HoverTooltipContext = createContext<HoverTooltipContextValue>({
   hide: () => {},
@@ -698,7 +697,7 @@ function readReaderControlSettings(): ReaderControlSettings {
       closeOnOutsideClick: typeof parsed.closeOnOutsideClick === "boolean"
         ? parsed.closeOnOutsideClick
         : defaults.closeOnOutsideClick,
-      actionOrder
+      actionOrder: synchronizeEditorControlActions(actionOrder)
     };
   } catch {
     return defaults;
@@ -4070,13 +4069,8 @@ function ReaderControls(props: ReaderControlsProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(readReaderControlSettings);
-  const [settingsDrag, setSettingsDrag] = useState<ReaderSettingsDrag | null>(null);
-  const [settingsDropTarget, setSettingsDropTarget] = useState<ReaderSettingsDropTarget>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
-  const settingsTemplateRef = useRef<HTMLDivElement>(null);
-  const settingsLibraryRef = useRef<HTMLDivElement>(null);
-  const settingsDragRef = useRef<ReaderSettingsDrag | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -4311,7 +4305,7 @@ function ReaderControls(props: ReaderControlsProps) {
 
   const updateActionOrder = (update: (current: ReaderControlAction[]) => ReaderControlAction[]) => {
     setSettings((current) => {
-      const actionOrder = update(current.actionOrder);
+      const actionOrder = synchronizeEditorControlActions(update(current.actionOrder));
       if (actionOrder.length === current.actionOrder.length && actionOrder.every((action, index) => current.actionOrder[index] === action)) {
         return current;
       }
@@ -4326,7 +4320,10 @@ function ReaderControls(props: ReaderControlsProps) {
   };
 
   const removeAction = (action: ReaderControlAction) => {
-    updateActionOrder((current) => current.filter((candidate) => candidate !== action));
+    updateActionOrder((current) => current.filter((candidate) => isEditorControlAction(action)
+      ? !isEditorControlAction(candidate)
+      : candidate !== action
+    ));
   };
 
   const updateCloseOnOutsideClick = (closeOnOutsideClick: boolean) => {
@@ -4349,113 +4346,6 @@ function ReaderControls(props: ReaderControlsProps) {
     const defaults = getDefaultReaderControlSettings();
     setSettings(defaults);
     saveReaderControlSettings(defaults);
-  };
-
-  const getSettingsDropTarget = (x: number, y: number): ReaderSettingsDropTarget => {
-    const element = document.elementFromPoint(x, y);
-    if (!(element instanceof Element)) {
-      return null;
-    }
-    if (settingsTemplateRef.current?.contains(element)) {
-      const templateAction = element.closest<HTMLElement>("[data-reader-template-action]");
-      if (!templateAction) {
-        return { type: "template", index: settings.actionOrder.length };
-      }
-      const index = Number(templateAction.dataset.readerTemplateAction);
-      const bounds = templateAction.getBoundingClientRect();
-      return { type: "template", index: x < bounds.left + bounds.width / 2 ? index : index + 1 };
-    }
-    if (settingsLibraryRef.current?.contains(element)) {
-      return { type: "library" };
-    }
-    return null;
-  };
-
-  const beginSettingsDrag = (
-    event: ReactPointerEvent<HTMLElement>,
-    action: ReaderControlAction,
-    source: ReaderSettingsDrag["source"]
-  ) => {
-    if (event.button !== 0) {
-      return;
-    }
-    const nextDrag: ReaderSettingsDrag = {
-      action,
-      source,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: event.clientX,
-      y: event.clientY,
-      isDragging: false
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-    settingsDragRef.current = nextDrag;
-    setSettingsDrag(nextDrag);
-    setSettingsDropTarget(null);
-  };
-
-  const updateSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const current = settingsDragRef.current;
-    if (!current || current.pointerId !== event.pointerId) {
-      return;
-    }
-    const isDragging = current.isDragging || Math.hypot(event.clientX - current.startX, event.clientY - current.startY) >= READER_DRAG_THRESHOLD;
-    if (!isDragging) {
-      return;
-    }
-    const nextDrag = { ...current, x: event.clientX, y: event.clientY, isDragging };
-    settingsDragRef.current = nextDrag;
-    setSettingsDrag(nextDrag);
-    setSettingsDropTarget(getSettingsDropTarget(event.clientX, event.clientY));
-  };
-
-  const endSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const current = settingsDragRef.current;
-    if (!current || current.pointerId !== event.pointerId) {
-      return;
-    }
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    const dropTarget = current.isDragging ? getSettingsDropTarget(event.clientX, event.clientY) : null;
-    settingsDragRef.current = null;
-    setSettingsDrag(null);
-    setSettingsDropTarget(null);
-    if (!dropTarget) {
-      return;
-    }
-    updateActionOrder((currentOrder) => {
-      if (current.source === "library") {
-        if (dropTarget.type !== "template" || currentOrder.includes(current.action)) {
-          return currentOrder;
-        }
-        const next = [...currentOrder];
-        next.splice(dropTarget.index, 0, current.action);
-        return next;
-      }
-      if (dropTarget.type === "library") {
-        return currentOrder.filter((action) => action !== current.action);
-      }
-      const previousIndex = currentOrder.indexOf(current.action);
-      if (previousIndex < 0) {
-        return currentOrder;
-      }
-      const next = currentOrder.filter((action) => action !== current.action);
-      const insertionIndex = dropTarget.index > previousIndex ? dropTarget.index - 1 : dropTarget.index;
-      next.splice(insertionIndex, 0, current.action);
-      return next;
-    });
-  };
-
-  const cancelSettingsDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const current = settingsDragRef.current;
-    if (!current || current.pointerId !== event.pointerId) {
-      return;
-    }
-    settingsDragRef.current = null;
-    setSettingsDrag(null);
-    setSettingsDropTarget(null);
   };
 
   const renderToolbarAction = (action: ReaderControlAction) => {
@@ -4645,109 +4535,73 @@ function ReaderControls(props: ReaderControlsProps) {
             </button>
           </header>
 
-          <section className="reader-settings-section reader-toolbar-assembly" aria-labelledby="reader-settings-visible-actions">
-            <div>
+          <section className="reader-settings-section reader-toolbar-customization" aria-label="工具栏组件设置">
+            <div className="reader-toolbar-customization-section">
               <h3 id="reader-settings-visible-actions">我的工具栏</h3>
-              <p>拖动组件到工具栏，或在工具栏内调整顺序。主菜单和设置按钮始终保留。</p>
+              <p>点击已添加的控制即可移除。主菜单和设置按钮始终保留。</p>
             </div>
             <div className="reader-toolbar-template-stage">
-              <div className="reader-toolbar-template" ref={settingsTemplateRef}>
+              <div className="reader-toolbar-template">
                 <span className="reader-toolbar-template-fixed" aria-hidden="true"><Menu /></span>
                 <div className="reader-toolbar-template-document" aria-hidden="true">
                   <span>阅读控制</span>
                   <span>当前文档</span>
                 </div>
                 <div className="reader-toolbar-template-actions">
-                  {settings.actionOrder.flatMap((action, index) => {
+                  {settings.actionOrder.map((action) => {
                     const definition = READER_CONTROL_ACTIONS.find(({ id }) => id === action);
                     if (!definition) {
-                      return [];
+                      return null;
                     }
                     const Icon = definition.icon;
-                    const placeholder = settingsDropTarget?.type === "template" && settingsDropTarget.index === index
-                      ? [<span className="reader-toolbar-drop-placeholder" aria-hidden="true" key={`placeholder-${index}`} />]
-                      : [];
-                    return [
-                      ...placeholder,
-                      <m.div
+                    return (
+                      <m.button
                         className="reader-toolbar-template-action"
-                        data-reader-template-action={index}
+                        type="button"
                         key={action}
                         layout
                         initial={{ opacity: 0, y: 20, scale: 0.82 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: MOTION_EASE_OUT }}
-                        onPointerDown={(event) => beginSettingsDrag(event, action, "template")}
-                        onPointerMove={updateSettingsDrag}
-                        onPointerUp={endSettingsDrag}
-                        onPointerCancel={cancelSettingsDrag}
-                        title={`拖动${definition.label}调整顺序或移除`}
+                        aria-label={`移除${definition.label}`}
+                        title={`点击移除${definition.label}`}
+                        onClick={() => removeAction(action)}
                       >
                         <Icon aria-hidden="true" />
-                        <button
-                          className="reader-toolbar-template-remove"
-                          type="button"
-                          aria-label={`移除${definition.label}`}
-                          title={`移除${definition.label}`}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={() => removeAction(action)}
-                        >
-                          <Minus aria-hidden="true" />
-                        </button>
-                      </m.div>
-                    ];
+                      </m.button>
+                    );
                   })}
-                  {settingsDropTarget?.type === "template" && settingsDropTarget.index === settings.actionOrder.length ? <span className="reader-toolbar-drop-placeholder" aria-hidden="true" /> : null}
                 </div>
                 <span className="reader-toolbar-template-fixed" aria-hidden="true"><Settings2 /></span>
               </div>
             </div>
-          </section>
 
-          <section className="reader-settings-section reader-component-library" aria-labelledby="reader-settings-component-library">
-            <div>
+            <div className="reader-toolbar-customization-section reader-component-library">
               <h3 id="reader-settings-component-library">组件库</h3>
-              <p>点击加号会追加到末尾，也可以向上拖入指定位置。将已装入组件向下拖回这里即可取消。</p>
+              <p>点击组件即可添加到工具栏末尾。</p>
             </div>
-            <div
-              className={`reader-component-library-grid${settingsDropTarget?.type === "library" ? " is-drop-target" : ""}`}
-              ref={settingsLibraryRef}
-            >
-              {READER_CONTROL_ACTIONS.map(({ id, label, description, icon: Icon }) => {
-                const isInstalled = settings.actionOrder.includes(id);
+            <div className="reader-component-library-grid">
+              {READER_CONTROL_ACTIONS.filter(({ id }) => !settings.actionOrder.includes(id) && id !== "save").map(({ id, label, description, icon: Icon }) => {
+                const isEditorGroup = id === "mode";
+                const componentLabel = isEditorGroup ? "编辑与保存" : label;
+                const componentDescription = isEditorGroup ? "切换编辑模式并保存修改" : description;
                 return (
-                  <m.article
-                    className={`reader-component-option${isInstalled ? " is-installed" : ""}`}
+                  <m.button
+                    className="reader-component-option"
+                    type="button"
                     key={id}
                     layout
-                    onPointerDown={isInstalled ? undefined : (event) => beginSettingsDrag(event, id, "library")}
-                    onPointerMove={isInstalled ? undefined : updateSettingsDrag}
-                    onPointerUp={isInstalled ? undefined : endSettingsDrag}
-                    onPointerCancel={isInstalled ? undefined : cancelSettingsDrag}
+                    aria-label={`添加${componentLabel}`}
+                    title={`${componentLabel}，${componentDescription}`}
+                    onClick={() => addAction(id)}
+                    whileTap={{ scale: 0.94 }}
                   >
                     <span className="reader-component-option-icon" aria-hidden="true"><Icon /></span>
-                    <div>
-                      <strong>{label}</strong>
-                      <p>{description}</p>
-                    </div>
-                    {isInstalled ? (
-                      <span className="reader-component-installed">已装入</span>
-                    ) : (
-                      <m.button
-                        className="reader-component-add"
-                        type="button"
-                        aria-label={`添加${label}`}
-                        title={`添加${label}`}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={() => addAction(id)}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <Plus aria-hidden="true" />
-                      </m.button>
-                    )}
-                  </m.article>
+                    <strong>{componentLabel}</strong>
+                  </m.button>
                 );
               })}
+              {settings.actionOrder.length === READER_CONTROL_ACTIONS.length ? <p className="reader-component-library-empty">所有组件均已添加。</p> : null}
             </div>
           </section>
 
@@ -4782,14 +4636,6 @@ function ReaderControls(props: ReaderControlsProps) {
               完成
             </button>
           </footer>
-          {settingsDrag?.isDragging ? (() => {
-            const Icon = READER_CONTROL_ACTIONS.find(({ id }) => id === settingsDrag.action)?.icon;
-            return Icon ? (
-              <m.div className="reader-settings-drag-ghost" style={{ left: settingsDrag.x, top: settingsDrag.y }} initial={{ opacity: 0, scale: 0.76 }} animate={{ opacity: 0.9, scale: 1 }}>
-                <Icon aria-hidden="true" />
-              </m.div>
-            ) : null;
-          })() : null}
         </dialog>,
         document.body
       ) : null}
