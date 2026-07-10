@@ -60,10 +60,11 @@ export type LibraryCreateFolderResponse = {
   version: number;
 };
 
-export type LibraryDeleteFileResponse = {
+export type LibraryDeleteEntryResponse = {
   deleted: {
     relativePath: string;
     title: string;
+    kind: "file" | "folder";
   };
   version: number;
 };

@@ -54,7 +54,7 @@ import type {
 } from "react";
 import type {
   LibraryCreateFolderResponse,
-  LibraryDeleteFileResponse,
+  LibraryDeleteEntryResponse,
   LibraryItem,
   LibraryKind,
   LibraryMoveResponse,
@@ -1327,13 +1327,13 @@ function useLibrary() {
     return payload as LibraryCreateFolderResponse;
   }, [checkForChanges]);
 
-  const deleteFile = useCallback(async (relativePath: string) => {
+  const deleteEntry = useCallback(async (relativePath: string) => {
     const response = await fetch("/api/library/delete", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ relativePath })
     });
-    const payload = await readJsonResponse<Partial<LibraryDeleteFileResponse> & { message?: string }>(
+    const payload = await readJsonResponse<Partial<LibraryDeleteEntryResponse> & { message?: string }>(
       response,
       "删除接口未就绪，请重启本地服务"
     );
@@ -1343,7 +1343,7 @@ function useLibrary() {
     }
 
     await checkForChanges();
-    return payload as LibraryDeleteFileResponse;
+    return payload as LibraryDeleteEntryResponse;
   }, [checkForChanges]);
 
   const revealPath = useCallback(async (relativePath: string, kind: "file" | "folder") => {
@@ -1407,11 +1407,11 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, createFolder, deleteFile, refresh, moveFile, openFile, revealPath, uploadFiles };
+  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveFile, openFile, revealPath, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, createFolder, deleteFile, refresh, moveFile, openFile, revealPath, uploadFiles } = useLibrary();
+  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveFile, openFile, revealPath, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
@@ -1587,7 +1587,7 @@ function App() {
         onToggleDetailTag={toggleDetailTag}
         onTreeModeChange={changeTreeMode}
         onCreateFolder={createFolder}
-        onDeleteFile={deleteFile}
+        onDeleteEntry={deleteEntry}
         onMoveFile={moveFile}
         onUploadFiles={uploadFiles}
       />
@@ -1630,7 +1630,7 @@ type LibraryHomeProps = {
   onToggleDetailTag: (tagId: DetailTagId) => void;
   onTreeModeChange: (mode: TreeDisplayMode) => void;
   onCreateFolder: (parentPath: string, name: string) => Promise<LibraryCreateFolderResponse>;
-  onDeleteFile: (relativePath: string) => Promise<LibraryDeleteFileResponse>;
+  onDeleteEntry: (relativePath: string) => Promise<LibraryDeleteEntryResponse>;
   onMoveFile: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
@@ -1658,7 +1658,7 @@ function LibraryHome(props: LibraryHomeProps) {
   });
   const {
     onCreateFolder,
-    onDeleteFile,
+    onDeleteEntry,
     onMoveFile,
     onOpenExternal,
     onRevealPath,
@@ -2046,42 +2046,47 @@ function LibraryHome(props: LibraryHomeProps) {
       });
   }, [props.libraryRoot, treeContextMenu]);
 
-  const deleteFileFromContext = useCallback(() => {
+  const deleteTargetFromContext = useCallback(() => {
     const target = treeContextMenu?.target;
-    if (!target || target.kind !== "file") {
+    if (!target || (target.kind === "folder" && !target.path)) {
       return;
     }
 
+    const targetKindLabel = target.kind === "folder" ? "文件夹" : "文件";
+    const parentPath = target.kind === "folder" ? parentPathFromRelativePath(target.path) : target.parentPath;
     setTreeContextMenu(null);
-    if (!window.confirm(`删除文件“${target.label}”？`)) {
+    const confirmMessage = target.kind === "folder"
+      ? `删除文件夹“${target.label}”及其中所有内容？`
+      : `删除文件“${target.label}”？`;
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setUploadState({
       status: "deleting",
-      targetPath: target.parentPath,
-      message: `正在删除 ${target.label}`
+      targetPath: parentPath,
+      message: `正在删除${targetKindLabel} ${target.label}`
     });
 
     void (async () => {
       try {
-        const result = await onDeleteFile(target.path);
-        expandFolderPath(target.parentPath);
+        const result = await onDeleteEntry(target.path);
+        expandFolderPath(parentPath);
         setUploadState({
           status: "success",
-          targetPath: target.parentPath,
-          message: `已删除 ${result.deleted.title}`
+          targetPath: parentPath,
+          message: `已删除${targetKindLabel} ${result.deleted.title}`
         });
-        onTopicChange(target.parentPath);
+        onTopicChange(parentPath);
       } catch (deleteError) {
         setUploadState({
           status: "error",
-          targetPath: target.parentPath,
+          targetPath: parentPath,
           message: deleteError instanceof Error ? deleteError.message : "删除失败"
         });
       }
     })();
-  }, [expandFolderPath, onDeleteFile, onTopicChange, treeContextMenu]);
+  }, [expandFolderPath, onDeleteEntry, onTopicChange, treeContextMenu]);
 
   const revealPathInManager = useCallback((relativePath: string, kind: "file" | "folder") => {
     void (async () => {
@@ -2225,11 +2230,11 @@ function LibraryHome(props: LibraryHomeProps) {
           <button
             type="button"
             role="menuitem"
-            disabled={treeContextMenu.target.kind !== "file"}
-            onClick={deleteFileFromContext}
+            disabled={treeContextMenu.target.kind === "folder" && !treeContextMenu.target.path}
+            onClick={deleteTargetFromContext}
           >
             <Trash2 aria-hidden="true" />
-            <span>删除文件</span>
+            <span>{treeContextMenu.target.kind === "folder" ? "删除文件夹" : "删除文件"}</span>
           </button>
         </div>
       </div>,

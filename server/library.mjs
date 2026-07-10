@@ -690,42 +690,61 @@ export async function moveLibraryFile(options = {}) {
   };
 }
 
-export async function deleteLibraryFile(options = {}) {
+export async function deleteLibraryEntry(options = {}) {
   const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
   const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
-  const sourceFile = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+  const sourceEntry = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
 
-  if (!sourceFile) {
+  if (!sourceEntry) {
     throw createLibraryError("删除路径不在 library 内", 403);
   }
 
   let sourceStat;
   try {
-    sourceStat = await fs.stat(sourceFile);
+    sourceStat = await fs.stat(sourceEntry);
   } catch (error) {
     if (error && error.code === "ENOENT") {
-      throw createLibraryError("文件不存在", 404);
+      throw createLibraryError("删除目标不存在", 404);
     }
     throw error;
   }
 
-  if (!sourceStat.isFile()) {
-    throw createLibraryError("只能删除文件", 400);
+  const isDirectory = sourceStat.isDirectory();
+  if (!sourceStat.isFile() && !isDirectory) {
+    throw createLibraryError("只能删除文件或文件夹", 400);
   }
 
-  const relativePath = normalizeRelativePath(path.relative(libraryDir, sourceFile));
-  await fs.rm(sourceFile);
+  const relativePath = normalizeRelativePath(path.relative(libraryDir, sourceEntry));
+  if (!relativePath && isDirectory) {
+    throw createLibraryError("不能删除 library 根目录", 400);
+  }
+
+  if (isDirectory) {
+    await fs.rm(sourceEntry, { recursive: true });
+  } else {
+    await fs.rm(sourceEntry);
+  }
 
   const meta = await readMeta(metaPath);
-  if (meta.items && typeof meta.items === "object" && meta.items[relativePath]) {
-    delete meta.items[relativePath];
-    await writeMeta(metaPath, meta);
+  if (meta.items && typeof meta.items === "object") {
+    const prefix = `${relativePath}/`;
+    let metaChanged = false;
+    for (const itemPath of Object.keys(meta.items)) {
+      if (itemPath === relativePath || (isDirectory && itemPath.startsWith(prefix))) {
+        delete meta.items[itemPath];
+        metaChanged = true;
+      }
+    }
+    if (metaChanged) {
+      await writeMeta(metaPath, meta);
+    }
   }
 
   return {
     deleted: {
       relativePath,
-      title: titleFromFileName(path.basename(sourceFile))
+      title: isDirectory ? path.basename(sourceEntry) : titleFromFileName(path.basename(sourceEntry)),
+      kind: isDirectory ? "folder" : "file"
     }
   };
 }

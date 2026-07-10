@@ -10,7 +10,7 @@ import {
   DEFAULT_LIBRARY_DIR,
   createLibraryFolder,
   createLibraryIndexState,
-  deleteLibraryFile,
+  deleteLibraryEntry,
   getLibraryErrorStatus,
   moveLibraryFile,
   openLibraryFile,
@@ -211,13 +211,13 @@ export function createApiHandler(options = {}) {
     if (requestUrl.pathname === "/api/library/delete" && req.method === "POST") {
       try {
         const payload = await readJsonBody(req, requestUrl);
-        const result = await deleteLibraryFile({ ...payload, libraryDir, metaPath });
+        const result = await deleteLibraryEntry({ ...payload, libraryDir, metaPath });
         const status = state.markChanged();
         sendJson(res, 200, { ...result, version: status.version });
       } catch (error) {
         sendJson(res, getLibraryErrorStatus(error), {
-          error: "LIBRARY_DELETE_FILE_FAILED",
-          message: error instanceof Error ? error.message : "Unknown file deletion error"
+          error: "LIBRARY_DELETE_FAILED",
+          message: error instanceof Error ? error.message : "Unknown deletion error"
         });
       }
       return true;

@@ -7,7 +7,7 @@ import { createApiHandler } from "../server/index.mjs";
 import {
   createLibraryFolder,
   createLibraryIndexState,
-  deleteLibraryFile,
+  deleteLibraryEntry,
   moveLibraryFile,
   openLibraryFile,
   revealLibraryPath,
@@ -340,9 +340,9 @@ describe("moveLibraryFile", () => {
   });
 });
 
-describe("deleteLibraryFile", () => {
+describe("deleteLibraryEntry", () => {
   it("删除文件并清理 metadata", async () => {
-    const result = await deleteLibraryFile({
+    const result = await deleteLibraryEntry({
       libraryDir,
       metaPath,
       relativePath: "S1/子主题/说明.md"
@@ -351,7 +351,8 @@ describe("deleteLibraryFile", () => {
     expect(result).toEqual({
       deleted: {
         relativePath: "S1/子主题/说明.md",
-        title: "说明"
+        title: "说明",
+        kind: "file"
       }
     });
     await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -360,17 +361,37 @@ describe("deleteLibraryFile", () => {
     expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
   });
 
-  it("拒绝 library 外路径和目录目标", async () => {
-    await expect(deleteLibraryFile({
+  it("删除文件夹并清理其中 metadata", async () => {
+    const result = await deleteLibraryEntry({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题"
+    });
+
+    expect(result).toEqual({
+      deleted: {
+        relativePath: "S1/子主题",
+        title: "子主题",
+        kind: "folder"
+      }
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("拒绝 library 外路径和根目录目标", async () => {
+    await expect(deleteLibraryEntry({
       libraryDir,
       metaPath,
       relativePath: "../DESIGN.md"
     })).rejects.toMatchObject({ statusCode: 403 });
 
-    await expect(deleteLibraryFile({
+    await expect(deleteLibraryEntry({
       libraryDir,
       metaPath,
-      relativePath: "S1/子主题"
+      relativePath: ""
     })).rejects.toMatchObject({ statusCode: 400 });
   });
 });
