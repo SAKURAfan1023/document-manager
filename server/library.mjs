@@ -54,6 +54,8 @@ const WPS_OPEN_EXTENSIONS = new Set([
   ".xltx"
 ]);
 
+const EDITABLE_TEXT_EXTENSIONS = new Set([".html", ".htm", ".md", ".markdown"]);
+
 export function getKind(extension) {
   return KIND_BY_EXTENSION.get(extension.toLowerCase()) ?? "other";
 }
@@ -497,6 +499,49 @@ export async function uploadLibraryFiles(options = {}) {
   return { uploaded };
 }
 
+export async function writeLibraryContent(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const relativePath = typeof options.relativePath === "string" ? options.relativePath : "";
+  const content = options.content;
+  const absolutePath = resolveLibraryFile(relativePath, libraryDir);
+
+  if (!absolutePath) {
+    throw createLibraryError("文件路径不在 library 内", 403);
+  }
+
+  if (!EDITABLE_TEXT_EXTENSIONS.has(path.extname(absolutePath).toLowerCase())) {
+    throw createLibraryError("仅支持编辑 HTML 和 Markdown 文件", 400);
+  }
+
+  if (typeof content !== "string") {
+    throw createLibraryError("文件内容必须是文本", 400);
+  }
+
+  let stat;
+  try {
+    stat = await fs.stat(absolutePath);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("文件不存在", 404);
+    }
+    throw error;
+  }
+
+  if (!stat.isFile()) {
+    throw createLibraryError("目标不是文件", 400);
+  }
+
+  await fs.writeFile(absolutePath, content, "utf8");
+  const updatedStat = await fs.stat(absolutePath);
+
+  return {
+    content: {
+      relativePath,
+      mtimeMs: updatedStat.mtimeMs
+    }
+  };
+}
+
 export async function createLibraryFolder(options = {}) {
   const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
   const parentDir = resolveLibraryDirectory(options.parentPath ?? "", libraryDir);
@@ -618,28 +663,29 @@ export async function openLibraryFile(options = {}) {
   };
 }
 
-export async function moveLibraryFile(options = {}) {
+export async function moveLibraryEntry(options = {}) {
   const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
   const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
-  const sourceFile = resolveLibraryEntry(options.sourcePath ?? "", libraryDir);
+  const sourceEntry = resolveLibraryEntry(options.sourcePath ?? "", libraryDir);
   const targetDir = resolveLibraryDirectory(options.targetPath ?? "", libraryDir);
 
-  if (!sourceFile || !targetDir) {
+  if (!sourceEntry || !targetDir) {
     throw createLibraryError("移动路径不在 library 内", 403);
   }
 
   let sourceStat;
   try {
-    sourceStat = await fs.stat(sourceFile);
+    sourceStat = await fs.stat(sourceEntry);
   } catch (error) {
     if (error && error.code === "ENOENT") {
-      throw createLibraryError("源文件不存在", 404);
+      throw createLibraryError("源条目不存在", 404);
     }
     throw error;
   }
 
-  if (!sourceStat.isFile()) {
-    throw createLibraryError("只能移动文件", 400);
+  const isDirectory = sourceStat.isDirectory();
+  if (!sourceStat.isFile() && !isDirectory) {
+    throw createLibraryError("只能移动文件或文件夹", 400);
   }
 
   let targetStat;
@@ -656,35 +702,55 @@ export async function moveLibraryFile(options = {}) {
     throw createLibraryError("目标不是目录", 400);
   }
 
-  const sourceDir = path.dirname(sourceFile);
-  const sourceRelativePath = normalizeRelativePath(path.relative(libraryDir, sourceFile));
+  const sourceDir = path.dirname(sourceEntry);
+  const sourceRelativePath = normalizeRelativePath(path.relative(libraryDir, sourceEntry));
+  if (isDirectory && !sourceRelativePath) {
+    throw createLibraryError("不能移动 library 根目录", 400);
+  }
+
+  if (isDirectory && (targetDir === sourceEntry || targetDir.startsWith(`${sourceEntry}${path.sep}`))) {
+    throw createLibraryError("不能将文件夹移动到自身或其子目录", 400);
+  }
+
   if (sourceDir === targetDir) {
     return {
       moved: {
         relativePath: sourceRelativePath,
-        title: titleFromFileName(path.basename(sourceFile))
+        title: isDirectory ? path.basename(sourceEntry) : titleFromFileName(path.basename(sourceEntry)),
+        kind: isDirectory ? "folder" : "file"
       },
       changed: false
     };
   }
 
-  const destination = await resolveAvailableFilePath(targetDir, path.basename(sourceFile));
-  await fs.rename(sourceFile, destination);
+  const destination = isDirectory
+    ? await resolveAvailableDirectoryPath(targetDir, path.basename(sourceEntry))
+    : await resolveAvailableFilePath(targetDir, path.basename(sourceEntry));
+  await fs.rename(sourceEntry, destination);
 
   const movedRelativePath = normalizeRelativePath(path.relative(libraryDir, destination));
   const meta = await readMeta(metaPath);
-  const metaEntry = meta.items?.[sourceRelativePath];
-  if (metaEntry) {
-    meta.items = meta.items && typeof meta.items === "object" ? meta.items : {};
-    meta.items[movedRelativePath] = metaEntry;
-    delete meta.items[sourceRelativePath];
-    await writeMeta(metaPath, meta);
+  if (meta.items && typeof meta.items === "object") {
+    const sourcePrefix = `${sourceRelativePath}/`;
+    let metaChanged = false;
+    for (const [itemPath, metaEntry] of Object.entries(meta.items)) {
+      if (itemPath === sourceRelativePath || (isDirectory && itemPath.startsWith(sourcePrefix))) {
+        const suffix = itemPath.slice(sourceRelativePath.length);
+        meta.items[`${movedRelativePath}${suffix}`] = metaEntry;
+        delete meta.items[itemPath];
+        metaChanged = true;
+      }
+    }
+    if (metaChanged) {
+      await writeMeta(metaPath, meta);
+    }
   }
 
   return {
     moved: {
       relativePath: movedRelativePath,
-      title: titleFromFileName(path.basename(destination))
+      title: isDirectory ? path.basename(destination) : titleFromFileName(path.basename(destination)),
+      kind: isDirectory ? "folder" : "file"
     },
     changed: true
   };

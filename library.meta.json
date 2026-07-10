@@ -1,14 +1,23 @@
 {
   "items": {
-    "S1/s1-followup-plan.html": {
+    "AI Native/S1/s1-followup-plan.html": {
       "title": "S1 文档智能解析横评补充计划",
-      "tags": ["样例", "HTML", "S1"],
+      "tags": [
+        "样例",
+        "HTML",
+        "S1"
+      ],
       "order": 1,
       "hidden": false
     },
-    "S1/comparison/index.html": {
+    "AI Native/S1/comparison/index.html": {
       "title": "TextIn Badcase 横向解析对比",
-      "tags": ["S1", "横评", "Badcase", "HTML"],
+      "tags": [
+        "S1",
+        "横评",
+        "Badcase",
+        "HTML"
+      ],
       "order": 2,
       "hidden": false
     }

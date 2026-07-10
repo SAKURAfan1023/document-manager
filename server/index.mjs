@@ -12,12 +12,13 @@ import {
   createLibraryIndexState,
   deleteLibraryEntry,
   getLibraryErrorStatus,
-  moveLibraryFile,
+  moveLibraryEntry,
   openLibraryFile,
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
   uploadLibraryFiles,
+  writeLibraryContent,
   watchLibraryChanges
 } from "./library.mjs";
 
@@ -134,6 +135,7 @@ export function createApiHandler(options = {}) {
   const state = options.libraryState ?? createLibraryIndexState();
   const revealPath = options.revealLibraryPath ?? revealLibraryPath;
   const openFile = options.openLibraryFile ?? openLibraryFile;
+  const writeContent = options.writeLibraryContent ?? writeLibraryContent;
 
   return async function handleApi(req, res) {
     const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -196,7 +198,7 @@ export function createApiHandler(options = {}) {
     if (requestUrl.pathname === "/api/library/move" && req.method === "POST") {
       try {
         const payload = await readJsonBody(req, requestUrl);
-        const result = await moveLibraryFile({ ...payload, libraryDir, metaPath });
+        const result = await moveLibraryEntry({ ...payload, libraryDir, metaPath });
         const status = result.changed ? state.markChanged() : state.getStatus();
         sendJson(res, 200, { ...result, version: status.version });
       } catch (error) {
@@ -218,6 +220,21 @@ export function createApiHandler(options = {}) {
         sendJson(res, getLibraryErrorStatus(error), {
           error: "LIBRARY_DELETE_FAILED",
           message: error instanceof Error ? error.message : "Unknown deletion error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/content" && req.method === "PUT") {
+      try {
+        const payload = await readJsonBody(req, requestUrl);
+        const result = await writeContent({ ...payload, libraryDir });
+        const status = state.markChanged();
+        sendJson(res, 200, { ...result, version: status.version });
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_CONTENT_WRITE_FAILED",
+          message: error instanceof Error ? error.message : "Unknown content write error"
         });
       }
       return true;

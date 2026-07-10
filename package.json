@@ -12,6 +12,7 @@
     "build:launcher": "npm run build && scripts/build-launcher.sh"
   },
   "dependencies": {
+    "@mdxeditor/editor": "^4.0.4",
     "framer-motion": "^12.42.2",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",

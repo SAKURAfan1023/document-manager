@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Eye,
   ExternalLink,
   File,
   FileArchive,
@@ -20,6 +21,7 @@ import {
   Home,
   ListFilter,
   Menu,
+  PenLine,
   Presentation,
   RefreshCw,
   Search,
@@ -32,6 +34,7 @@ import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "framer
 import {
   Component,
   createContext,
+  lazy,
   Suspense,
   use,
   useCallback,
@@ -53,6 +56,7 @@ import type {
   PointerEvent as ReactPointerEvent
 } from "react";
 import type {
+  LibraryContentResponse,
   LibraryCreateFolderResponse,
   LibraryDeleteEntryResponse,
   LibraryItem,
@@ -110,8 +114,9 @@ type TreeContextMenuState = {
   target: TreeContextTarget;
 };
 
-type TreeFileDragPayload = {
+type TreeEntryDragPayload = {
   relativePath: string;
+  kind: "file" | "folder";
 };
 
 type SidebarResizeState = {
@@ -188,7 +193,7 @@ const DEFAULT_DETAIL_TAGS = new Set<DetailTagId>(DETAIL_TAG_OPTIONS.map((option)
 const EMPTY_ITEMS: LibraryItem[] = [];
 const EMPTY_NODES: LibraryNode[] = [];
 const EMPTY_TOPICS: TopicOption[] = [];
-const TREE_FILE_DRAG_TYPE = "application/x-document-gallery-file+json";
+const TREE_ENTRY_DRAG_TYPE = "application/x-document-gallery-entry+json";
 const LOCATION_CHANGE_EVENT = "document-gallery-location-change";
 const WPS_TEXT_EXTENSIONS = new Set(["doc", "docx", "dot", "dotx", "rtf", "wps", "wpt"]);
 const WPS_SHEET_EXTENSIONS = new Set(["et", "ett", "xls", "xlsx", "xlsm", "xlt", "xltx"]);
@@ -206,6 +211,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit"
 });
 const TEXT_CONTENT_CACHE = new Map<string, Promise<string>>();
+const MarkdownRichEditor = lazy(() => import("./MarkdownRichEditor"));
 const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
@@ -232,6 +238,8 @@ type ViewportSize = {
 };
 
 type ReaderPanelPlacement = "top" | "bottom";
+type ReaderMode = "preview" | "edit";
+type EditorSaveState = "idle" | "loading" | "saving" | "saved" | "error";
 
 type StoredReaderControlState = {
   position: Point;
@@ -890,28 +898,37 @@ function escapeDragHtml(value: string) {
   });
 }
 
-function isTreeFileDrag(dataTransfer: DataTransfer) {
-  return Array.from(dataTransfer.types).includes(TREE_FILE_DRAG_TYPE);
+function isTreeEntryDrag(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes(TREE_ENTRY_DRAG_TYPE);
 }
 
-function readTreeFileDrag(dataTransfer: DataTransfer): TreeFileDragPayload | null {
+function readTreeEntryDrag(dataTransfer: DataTransfer): TreeEntryDragPayload | null {
   try {
-    const raw = dataTransfer.getData(TREE_FILE_DRAG_TYPE);
+    const raw = dataTransfer.getData(TREE_ENTRY_DRAG_TYPE);
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<TreeFileDragPayload>;
-    return typeof parsed.relativePath === "string" && parsed.relativePath ? { relativePath: parsed.relativePath } : null;
+    const parsed = JSON.parse(raw) as Partial<TreeEntryDragPayload>;
+    return typeof parsed.relativePath === "string"
+      && parsed.relativePath
+      && (parsed.kind === "file" || parsed.kind === "folder")
+      ? { relativePath: parsed.relativePath, kind: parsed.kind }
+      : null;
   } catch {
     return null;
   }
 }
 
+function setTreeEntryDragData(event: ReactDragEvent<HTMLElement>, entry: TreeEntryDragPayload) {
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData(TREE_ENTRY_DRAG_TYPE, JSON.stringify(entry));
+}
+
 function setTreeFileDragData(event: ReactDragEvent<HTMLElement>, item: LibraryItem) {
   const fileUrl = new URL(item.url, window.location.href).toString();
   const fileName = fileNameFromRelativePath(item.relativePath).replace(/:/g, "_");
+  setTreeEntryDragData(event, { relativePath: item.relativePath, kind: "file" });
   event.dataTransfer.effectAllowed = "copyMove";
-  event.dataTransfer.setData(TREE_FILE_DRAG_TYPE, JSON.stringify({ relativePath: item.relativePath }));
   event.dataTransfer.setData("DownloadURL", `${itemMimeType(item)}:${fileName}:${fileUrl}`);
   event.dataTransfer.setData("text/uri-list", fileUrl);
   event.dataTransfer.setData("text/plain", fileUrl);
@@ -1289,7 +1306,7 @@ function useLibrary() {
     return payload as LibraryUploadResponse;
   }, [checkForChanges]);
 
-  const moveFile = useCallback(async (sourcePath: string, targetPath: string) => {
+  const moveEntry = useCallback(async (sourcePath: string, targetPath: string) => {
     const response = await fetch("/api/library/move", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1382,6 +1399,25 @@ function useLibrary() {
     return payload as LibraryOpenResponse;
   }, []);
 
+  const saveContent = useCallback(async (relativePath: string, content: string) => {
+    const response = await fetch("/api/library/content", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath, content })
+    });
+    const payload = await readJsonResponse<Partial<LibraryContentResponse> & { message?: string }>(
+      response,
+      "保存接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `保存失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryContentResponse;
+  }, [checkForChanges]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -1407,11 +1443,11 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveFile, openFile, revealPath, uploadFiles };
+  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, revealPath, saveContent, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveFile, openFile, revealPath, uploadFiles } = useLibrary();
+  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, revealPath, saveContent, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
@@ -1545,6 +1581,7 @@ function App() {
           onBack={returnToLibrary}
           onOpen={openItem}
           onRefresh={refresh}
+          onSave={saveContent}
         />
       </HoverTooltipProvider>
     );
@@ -1588,7 +1625,7 @@ function App() {
         onTreeModeChange={changeTreeMode}
         onCreateFolder={createFolder}
         onDeleteEntry={deleteEntry}
-        onMoveFile={moveFile}
+        onMoveEntry={moveEntry}
         onUploadFiles={uploadFiles}
       />
     </HoverTooltipProvider>
@@ -1631,7 +1668,7 @@ type LibraryHomeProps = {
   onTreeModeChange: (mode: TreeDisplayMode) => void;
   onCreateFolder: (parentPath: string, name: string) => Promise<LibraryCreateFolderResponse>;
   onDeleteEntry: (relativePath: string) => Promise<LibraryDeleteEntryResponse>;
-  onMoveFile: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
+  onMoveEntry: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
 
@@ -1645,7 +1682,7 @@ function LibraryHome(props: LibraryHomeProps) {
   const sidebarResizeRef = useRef<SidebarResizeState | null>(null);
   const treeContextMenuRef = useRef<HTMLDivElement>(null);
   const [dragTarget, setDragTarget] = useState<DragTargetState | null>(null);
-  const [draggedFilePath, setDraggedFilePath] = useState<string | null>(null);
+  const [draggedEntryPath, setDraggedEntryPath] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.collapsed));
   const [knownFolderPaths, setKnownFolderPaths] = useState<Set<string>>(() => new Set(initialTreeCollapseRef.current?.known));
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() => readStoredSidebarWidth());
@@ -1659,7 +1696,7 @@ function LibraryHome(props: LibraryHomeProps) {
   const {
     onCreateFolder,
     onDeleteEntry,
-    onMoveFile,
+    onMoveEntry,
     onOpenExternal,
     onRevealPath,
     onSetDefaultOpenMode,
@@ -1811,7 +1848,7 @@ function LibraryHome(props: LibraryHomeProps) {
     }
   }, [onUploadFiles]);
 
-  const moveFileToTopic = useCallback(async (sourcePath: string, targetPath: string) => {
+  const moveEntryToTopic = useCallback(async (sourcePath: string, targetPath: string) => {
     setUploadState({
       status: "moving",
       targetPath,
@@ -1819,11 +1856,13 @@ function LibraryHome(props: LibraryHomeProps) {
     });
 
     try {
-      const result = await onMoveFile(sourcePath, targetPath);
+      const result = await onMoveEntry(sourcePath, targetPath);
       setUploadState({
         status: "success",
         targetPath,
-        message: result.changed ? `已移动到 ${dragTargetLabel(targetPath)}` : "文件已在此目录"
+        message: result.changed
+          ? `已移动${result.moved.kind === "folder" ? "文件夹" : "文件"}到 ${dragTargetLabel(targetPath)}`
+          : `${result.moved.kind === "folder" ? "文件夹" : "文件"}已在此目录`
       });
       onTopicChange(targetPath);
     } catch (moveError) {
@@ -1833,18 +1872,18 @@ function LibraryHome(props: LibraryHomeProps) {
         message: moveError instanceof Error ? moveError.message : "移动失败"
       });
     }
-  }, [onMoveFile, onTopicChange]);
+  }, [onMoveEntry, onTopicChange]);
 
   const dropToTopic = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    const treeFile = readTreeFileDrag(event.dataTransfer);
-    const sourcePath = treeFile?.relativePath ?? draggedFilePath;
+    const treeEntry = readTreeEntryDrag(event.dataTransfer);
+    const sourcePath = treeEntry?.relativePath ?? draggedEntryPath;
     setDragTarget(null);
-    setDraggedFilePath(null);
+    setDraggedEntryPath(null);
 
     if (sourcePath) {
-      void moveFileToTopic(sourcePath, targetPath);
+      void moveEntryToTopic(sourcePath, targetPath);
       return;
     }
 
@@ -1858,12 +1897,12 @@ function LibraryHome(props: LibraryHomeProps) {
     }
 
     void uploadToTopic(targetPath, event.dataTransfer.files);
-  }, [draggedFilePath, moveFileToTopic, uploadToTopic]);
+  }, [draggedEntryPath, moveEntryToTopic, uploadToTopic]);
 
   const markDragTarget = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    const action: TreeDragAction = draggedFilePath || isTreeFileDrag(event.dataTransfer) ? "move" : "upload";
+    const action: TreeDragAction = draggedEntryPath || isTreeEntryDrag(event.dataTransfer) ? "move" : "upload";
     event.dataTransfer.dropEffect = action === "move" ? "move" : "copy";
     setDragTarget({ path: targetPath, action });
     setUploadState((current) => current.status === "uploading" || current.status === "moving"
@@ -1873,7 +1912,7 @@ function LibraryHome(props: LibraryHomeProps) {
         targetPath,
         message: `${action === "move" ? "移动到" : "添加到"} ${dragTargetLabel(targetPath)}`
       });
-  }, [draggedFilePath]);
+  }, [draggedEntryPath]);
 
   const clearDragTarget = useCallback((event: ReactDragEvent<HTMLElement>) => {
     const relatedTarget = event.relatedTarget;
@@ -1887,7 +1926,7 @@ function LibraryHome(props: LibraryHomeProps) {
   }, []);
 
   const startFileDrag = useCallback((item: LibraryItem, event: ReactDragEvent<HTMLElement>) => {
-    setDraggedFilePath(item.relativePath);
+    setDraggedEntryPath(item.relativePath);
     setTreeFileDragData(event, item);
     setUploadState({
       status: "dragging",
@@ -1896,8 +1935,21 @@ function LibraryHome(props: LibraryHomeProps) {
     });
   }, []);
 
-  const endFileDrag = useCallback(() => {
-    setDraggedFilePath(null);
+  const startFolderDrag = useCallback((folderPath: string, event: ReactDragEvent<HTMLElement>) => {
+    if (event.currentTarget !== event.target) {
+      return;
+    }
+    setDraggedEntryPath(folderPath);
+    setTreeEntryDragData(event, { relativePath: folderPath, kind: "folder" });
+    setUploadState({
+      status: "dragging",
+      targetPath: folderPath,
+      message: "拖到目录移动文件夹"
+    });
+  }, []);
+
+  const endEntryDrag = useCallback(() => {
+    setDraggedEntryPath(null);
     setDragTarget(null);
     setUploadState((current) => current.status === "dragging"
       ? { status: "idle", targetPath: "", message: "选择或拖入文件" }
@@ -2344,7 +2396,7 @@ function LibraryHome(props: LibraryHomeProps) {
               activeTopic={props.activeTopic}
               collapsedFolders={visibleCollapsedFolders}
               dragTarget={dragTarget}
-              draggedFilePath={draggedFilePath}
+              draggedEntryPath={draggedEntryPath}
               filesByTopic={filesByTopic}
               mode={props.treeMode}
               root={props.tree}
@@ -2352,8 +2404,9 @@ function LibraryHome(props: LibraryHomeProps) {
               onDragLeave={clearDragTarget}
               onDragTarget={markDragTarget}
               onDropToTopic={dropToTopic}
-              onFileDragEnd={endFileDrag}
+              onEntryDragEnd={endEntryDrag}
               onFileDragStart={startFileDrag}
+              onFolderDragStart={startFolderDrag}
               onFileSelect={props.onSelectTreeFile}
               onContextMenu={openTreeContextMenu}
               onRevealPath={revealPathInManager}
@@ -2491,7 +2544,7 @@ type TopicTreeProps = {
   activeTopic: string;
   collapsedFolders: Set<string>;
   dragTarget: DragTargetState | null;
-  draggedFilePath: string | null;
+  draggedEntryPath: string | null;
   filesByTopic: Map<string, LibraryItem[]>;
   mode: TreeDisplayMode;
   root: LibraryNode;
@@ -2499,8 +2552,9 @@ type TopicTreeProps = {
   onDragLeave: (event: ReactDragEvent<HTMLElement>) => void;
   onDragTarget: (targetPath: string, event: ReactDragEvent<HTMLElement>) => void;
   onDropToTopic: (targetPath: string, event: ReactDragEvent<HTMLElement>) => void;
-  onFileDragEnd: () => void;
+  onEntryDragEnd: () => void;
   onFileDragStart: (item: LibraryItem, event: ReactDragEvent<HTMLElement>) => void;
+  onFolderDragStart: (folderPath: string, event: ReactDragEvent<HTMLElement>) => void;
   onFileSelect: (relativePath: string) => void;
   onContextMenu: (target: TreeContextTarget, event: ReactMouseEvent<HTMLElement>) => void;
   onRevealPath: (relativePath: string, kind: "file" | "folder") => void;
@@ -2520,7 +2574,7 @@ function TopicTree(props: TopicTreeProps) {
         activeTopic={props.activeTopic}
         collapsedFolders={props.collapsedFolders}
         dragTarget={props.dragTarget}
-        draggedFilePath={props.draggedFilePath}
+        draggedEntryPath={props.draggedEntryPath}
         filesByTopic={props.filesByTopic}
         mode={props.mode}
         node={props.root}
@@ -2529,8 +2583,9 @@ function TopicTree(props: TopicTreeProps) {
         onDragLeave={props.onDragLeave}
         onDragTarget={props.onDragTarget}
         onDropToTopic={props.onDropToTopic}
-        onFileDragEnd={props.onFileDragEnd}
+        onEntryDragEnd={props.onEntryDragEnd}
         onFileDragStart={props.onFileDragStart}
+        onFolderDragStart={props.onFolderDragStart}
         onFileSelect={props.onFileSelect}
         onContextMenu={props.onContextMenu}
         onRevealPath={props.onRevealPath}
@@ -2550,7 +2605,7 @@ function TopicTreeNode({
   activeTopic,
   collapsedFolders,
   dragTarget,
-  draggedFilePath,
+  draggedEntryPath,
   filesByTopic,
   mode,
   node,
@@ -2559,8 +2614,9 @@ function TopicTreeNode({
   onDragLeave,
   onDragTarget,
   onDropToTopic,
-  onFileDragEnd,
+  onEntryDragEnd,
   onFileDragStart,
+  onFolderDragStart,
   onFileSelect,
   onContextMenu,
   onRevealPath,
@@ -2582,13 +2638,17 @@ function TopicTreeNode({
         className={[
           "topic-button",
           isActive ? "active" : "",
+          draggedEntryPath === node.path && !isRoot ? "drag-source" : "",
           isDropTarget ? "drop-target" : ""
         ].filter(Boolean).join(" ")}
+        draggable={!isRoot}
         data-drop-action={isDropTarget ? dragTarget?.action : undefined}
         style={{ "--topic-depth": depth } as React.CSSProperties}
         onBlur={tooltip.hide}
         onDragOver={(event) => onDragTarget(node.path, event)}
         onDragLeave={onDragLeave}
+        onDragEnd={onEntryDragEnd}
+        onDragStart={(event) => onFolderDragStart(node.path, event)}
         onDrop={(event) => onDropToTopic(node.path, event)}
         onFocus={() => tooltip.show(nodeLabel)}
         onContextMenu={(event) => onContextMenu({
@@ -2642,7 +2702,7 @@ function TopicTreeNode({
               activeTopic={activeTopic}
               collapsedFolders={collapsedFolders}
               dragTarget={dragTarget}
-              draggedFilePath={draggedFilePath}
+              draggedEntryPath={draggedEntryPath}
               filesByTopic={filesByTopic}
               key={child.path}
               mode={mode}
@@ -2652,8 +2712,9 @@ function TopicTreeNode({
               onDragLeave={onDragLeave}
               onDragTarget={onDragTarget}
               onDropToTopic={onDropToTopic}
-              onFileDragEnd={onFileDragEnd}
+              onEntryDragEnd={onEntryDragEnd}
               onFileDragStart={onFileDragStart}
+              onFolderDragStart={onFolderDragStart}
               onFileSelect={onFileSelect}
               onContextMenu={onContextMenu}
               onRevealPath={onRevealPath}
@@ -2671,13 +2732,13 @@ function TopicTreeNode({
                 "topic-button",
                 "file-node",
                 item.relativePath === selectedFilePath ? "active" : "",
-                item.relativePath === draggedFilePath ? "drag-source" : ""
+                item.relativePath === draggedEntryPath ? "drag-source" : ""
               ].filter(Boolean).join(" ")}
               draggable
               key={item.id}
               style={{ "--topic-depth": depth + 1 } as React.CSSProperties}
               onBlur={tooltip.hide}
-              onDragEnd={onFileDragEnd}
+              onDragEnd={onEntryDragEnd}
               onDragOver={(event) => event.stopPropagation()}
               onDragStart={(event) => onFileDragStart(item, event)}
               onDrop={(event) => event.stopPropagation()}
@@ -2874,26 +2935,215 @@ type ReaderProps = {
   onBack: () => void;
   onOpen: (relativePath: string) => void;
   onRefresh: () => void;
+  onSave: (relativePath: string, content: string) => Promise<LibraryContentResponse>;
 };
 
-function Reader({ item, navigationItems, onBack, onOpen, onRefresh }: ReaderProps) {
+function isEditableReaderItem(item: LibraryItem) {
+  return item.kind === "html" || item.kind === "markdown";
+}
+
+function editorSaveLabel(state: EditorSaveState) {
+  switch (state) {
+    case "loading":
+      return "正在加载";
+    case "saving":
+      return "正在保存";
+    case "saved":
+      return "已保存";
+    case "error":
+      return "保存失败";
+    default:
+      return "未保存";
+  }
+}
+
+function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: ReaderProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const canEdit = isEditableReaderItem(item);
+  const [readerMode, setReaderMode] = useState<ReaderMode>("preview");
+  const [editorContent, setEditorContent] = useState("");
+  const [htmlPreviewSource, setHtmlPreviewSource] = useState("");
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<EditorSaveState>(canEdit ? "loading" : "idle");
+  const editorContentRef = useRef("");
+  const lastSavedContentRef = useRef("");
+  const queuedContentRef = useRef<string | null>(null);
+  const lastQueuedSaveRef = useRef<Promise<void> | null>(null);
+  const saveQueueRef = useRef<Promise<void> | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+  const currentPathRef = useRef(item.relativePath);
   const currentIndex = navigationItems.findIndex((candidate) => candidate.relativePath === item.relativePath);
   const previous = currentIndex > 0 ? navigationItems[currentIndex - 1] : null;
   const next = currentIndex >= 0 && currentIndex < navigationItems.length - 1 ? navigationItems[currentIndex + 1] : null;
+
+  useEffect(() => {
+    currentPathRef.current = item.relativePath;
+    setReaderMode("preview");
+    setEditorError(null);
+    queuedContentRef.current = null;
+    lastQueuedSaveRef.current = null;
+
+    if (!canEdit) {
+      setEditorContent("");
+      setHtmlPreviewSource("");
+      editorContentRef.current = "";
+      lastSavedContentRef.current = "";
+      setSaveState("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setSaveState("loading");
+    fetch(`${item.url}?t=${Date.now()}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`读取失败：${response.status}`);
+        }
+        return await response.text();
+      })
+      .then((content) => {
+        if (cancelled) {
+          return;
+        }
+        editorContentRef.current = content;
+        lastSavedContentRef.current = content;
+        setEditorContent(content);
+        setHtmlPreviewSource(item.kind === "html" ? content : "");
+        setSaveState("saved");
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setEditorError(error instanceof Error ? error.message : "读取失败");
+        setSaveState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canEdit, item.kind, item.relativePath, item.url]);
+
+  const queueSave = useCallback(async (content: string) => {
+    if (!canEdit || content === lastSavedContentRef.current) {
+      return;
+    }
+
+    if (queuedContentRef.current === content && lastQueuedSaveRef.current) {
+      return await lastQueuedSaveRef.current;
+    }
+
+    const relativePath = item.relativePath;
+    queuedContentRef.current = content;
+    setSaveState("saving");
+    setEditorError(null);
+    const saveTask = (saveQueueRef.current ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(async () => {
+        await onSave(relativePath, content);
+        lastSavedContentRef.current = content;
+        if (currentPathRef.current === relativePath && editorContentRef.current === content) {
+          queuedContentRef.current = null;
+          setSaveState("saved");
+        }
+      })
+      .catch((error) => {
+        if (currentPathRef.current === relativePath && editorContentRef.current === content) {
+          queuedContentRef.current = null;
+          setEditorError(error instanceof Error ? error.message : "保存失败");
+          setSaveState("error");
+        }
+        throw error;
+      });
+
+    lastQueuedSaveRef.current = saveTask;
+    saveQueueRef.current = saveTask.catch(() => undefined);
+    return await saveTask;
+  }, [canEdit, item.relativePath, onSave]);
+
+  useEffect(() => {
+    if (
+      !canEdit
+      || (saveState !== "idle" && saveState !== "saved")
+      || editorContent === lastSavedContentRef.current
+    ) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void queueSave(editorContent).catch(() => {});
+    }, 500);
+    saveTimerRef.current = timerId;
+
+    return () => {
+      window.clearTimeout(timerId);
+      if (saveTimerRef.current === timerId) {
+        saveTimerRef.current = null;
+      }
+    };
+  }, [canEdit, editorContent, queueSave, saveState]);
+
+  const flushSave = useCallback(async () => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    if (!canEdit || saveState === "loading") {
+      return;
+    }
+
+    try {
+      await queueSave(editorContentRef.current);
+    } catch {
+      // 保留错误状态，仍允许用户切换文件或离开阅读器。
+    }
+  }, [canEdit, queueSave, saveState]);
+
+  const changeReaderMode = useCallback(async () => {
+    if (readerMode === "edit") {
+      await flushSave();
+      setReaderMode("preview");
+      return;
+    }
+    setReaderMode("edit");
+  }, [flushSave, readerMode]);
+
+  const navigateReader = useCallback(async (relativePath: string) => {
+    await flushSave();
+    onOpen(relativePath);
+  }, [flushSave, onOpen]);
+
+  const leaveReader = useCallback(async () => {
+    await flushSave();
+    onBack();
+  }, [flushSave, onBack]);
+
+  const updateEditorContent = useCallback((content: string) => {
+    editorContentRef.current = content;
+    setEditorContent(content);
+    setEditorError(null);
+    setSaveState(content === lastSavedContentRef.current ? "saved" : "idle");
+  }, []);
+
   const handleReaderKey = useEffectEvent((event: KeyboardEvent) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.matches("input, textarea, select"))) {
+      return;
+    }
     if (event.key === "Escape" && isControlsOpen) {
       setIsControlsOpen(false);
       return;
     }
     if (event.key === "Escape") {
-      onBack();
+      void leaveReader();
     }
     if (event.key === "ArrowLeft" && previous) {
-      onOpen(previous.relativePath);
+      void navigateReader(previous.relativePath);
     }
     if (event.key === "ArrowRight" && next) {
-      onOpen(next.relativePath);
+      void navigateReader(next.relativePath);
     }
   });
 
@@ -2908,30 +3158,53 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh }: ReaderProp
   return (
     <div className="reader-shell">
       <ReaderControls
+        canEdit={canEdit}
         isOpen={isControlsOpen}
         item={item}
+        mode={readerMode}
         navigationItems={navigationItems}
         next={next}
         previous={previous}
-        onBack={onBack}
-        onOpen={onOpen}
+        saveState={saveState}
+        onBack={() => void leaveReader()}
+        onOpen={(relativePath) => void navigateReader(relativePath)}
         onRefresh={onRefresh}
+        onToggleMode={() => void changeReaderMode()}
         onToggleOpen={setIsControlsOpen}
       />
-      <ReaderSurface item={item} />
+      {item.kind === "html" && htmlPreviewSource && !editorError ? (
+        <HtmlRichPreview
+          item={item}
+          isEditing={readerMode === "edit"}
+          source={htmlPreviewSource}
+          onChange={updateEditorContent}
+        />
+      ) : item.kind === "markdown" && readerMode === "edit" && !editorError ? (
+        <section className="reader-rich-editor" aria-label={`${item.title} 富文本编辑器`}>
+          <Suspense fallback={<article className="text-preview"><pre> </pre></article>}>
+            <MarkdownRichEditor fileUrl={item.url} markdown={editorContent} onChange={updateEditorContent} />
+          </Suspense>
+        </section>
+      ) : (
+        <ReaderSurface item={item} key={`${item.relativePath}:${item.mtimeMs}`} />
+      )}
     </div>
   );
 }
 
 type ReaderControlsProps = {
+  canEdit: boolean;
   isOpen: boolean;
   item: LibraryItem;
+  mode: ReaderMode;
   navigationItems: LibraryItem[];
   next: LibraryItem | null;
   previous: LibraryItem | null;
+  saveState: EditorSaveState;
   onBack: () => void;
   onOpen: (relativePath: string) => void;
   onRefresh: () => void;
+  onToggleMode: () => void;
   onToggleOpen: (isOpen: boolean) => void;
 };
 
@@ -3190,7 +3463,14 @@ function ReaderControls(props: ReaderControlsProps) {
                   transition={controlItemInTransition}
                 >
                   <div>
-                    <p>阅读控制</p>
+                    <p
+                      className="reader-control-status"
+                      data-status={props.canEdit ? props.saveState : undefined}
+                    >
+                      {props.canEdit
+                        ? `${props.mode === "edit" ? "编辑" : "预览"} · ${editorSaveLabel(props.saveState)}`
+                        : "阅读控制"}
+                    </p>
                     <FullText text={props.item.title}>{props.item.title}</FullText>
                   </div>
                 </m.div>
@@ -3244,6 +3524,18 @@ function ReaderControls(props: ReaderControlsProps) {
                   >
                     <RefreshCw aria-hidden="true" />
                   </m.button>
+                  {props.canEdit ? (
+                    <m.button
+                      className="icon-button"
+                      type="button"
+                      title={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
+                      aria-label={props.mode === "edit" ? "切换到预览模式" : "切换到编辑模式"}
+                      onClick={props.onToggleMode}
+                      variants={actionButtonVariants}
+                    >
+                      {props.mode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
+                    </m.button>
+                  ) : null}
                   <m.a
                     className="icon-button"
                     href={props.item.url}
@@ -3339,6 +3631,135 @@ function ReaderSurface({ item }: { item: LibraryItem }) {
         </a>
       </div>
     </div>
+  );
+}
+
+const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
+(() => {
+  let editing = false;
+  const blockedInputTypes = new Set([
+    'insertParagraph', 'insertLineBreak', 'insertFromDrop', 'formatBackColor',
+    'formatBold', 'formatFontColor', 'formatFontName', 'formatFontSize',
+    'formatIndent', 'formatItalic', 'formatJustifyCenter', 'formatJustifyFull',
+    'formatJustifyLeft', 'formatJustifyRight', 'formatOutdent', 'formatRemove',
+    'formatSetBlockTextDirection', 'formatStrikeThrough', 'formatSubscript',
+    'formatSuperscript', 'formatUnderline'
+  ]);
+
+  const doctype = () => {
+    const node = document.doctype;
+    if (!node) return '';
+    const publicId = node.publicId ? ' PUBLIC "' + node.publicId + '"' : '';
+    const systemId = node.systemId ? (publicId ? ' "' + node.systemId + '"' : ' SYSTEM "' + node.systemId + '"') : '';
+    return '<!DOCTYPE ' + node.name + publicId + systemId + '>';
+  };
+
+  const serialize = () => {
+    const root = document.documentElement.cloneNode(true);
+    root.querySelectorAll('[data-document-gallery-editor-bridge], [data-document-gallery-editor-base]').forEach((node) => node.remove());
+    if (root.body) {
+      root.body.removeAttribute('contenteditable');
+      root.body.removeAttribute('data-document-gallery-editing');
+    }
+    return doctype() + '\\n' + root.outerHTML;
+  };
+
+  const emit = () => parent.postMessage({ type: 'document-gallery-html-change', content: serialize() }, '*');
+
+  const setEditing = (enabled) => {
+    editing = Boolean(enabled);
+    if (!document.body) return;
+    document.body.contentEditable = editing ? 'plaintext-only' : 'false';
+    document.body.toggleAttribute('data-document-gallery-editing', editing);
+  };
+
+  document.addEventListener('beforeinput', (event) => {
+    if (editing && blockedInputTypes.has(event.inputType)) event.preventDefault();
+  });
+  document.addEventListener('paste', (event) => {
+    if (!editing) return;
+    event.preventDefault();
+    document.execCommand('insertText', false, event.clipboardData?.getData('text/plain') || '');
+  });
+  document.addEventListener('click', (event) => {
+    if (editing) event.preventDefault();
+  }, true);
+  document.addEventListener('input', () => {
+    if (editing) emit();
+  });
+  window.addEventListener('message', (event) => {
+    if (event.data?.type === 'document-gallery-html-mode') setEditing(event.data.editing);
+  });
+  parent.postMessage({ type: 'document-gallery-html-ready' }, '*');
+})();
+</script>`;
+
+function escapeHtmlAttribute(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function createEditableHtmlDocument(source: string, fileUrl: string) {
+  const baseTag = `<base data-document-gallery-editor-base href="${escapeHtmlAttribute(new URL(fileUrl, window.location.origin).href)}">`;
+  const withBase = /<head\b[^>]*>/i.test(source)
+    ? source.replace(/<head\b[^>]*>/i, (tag) => `${tag}${baseTag}`)
+    : `${baseTag}${source}`;
+  return /<\/body\s*>/i.test(withBase)
+    ? withBase.replace(/<\/body\s*>/i, `${HTML_EDITOR_BRIDGE}</body>`)
+    : `${withBase}${HTML_EDITOR_BRIDGE}`;
+}
+
+function HtmlRichPreview({
+  item,
+  isEditing,
+  onChange,
+  source
+}: {
+  item: LibraryItem;
+  isEditing: boolean;
+  onChange: (content: string) => void;
+  source: string;
+}) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const emitContentChange = useEffectEvent(onChange);
+  const sourceDocument = useMemo(() => createEditableHtmlDocument(source, item.url), [item.url, source]);
+  const setEditingMode = useCallback(() => {
+    frameRef.current?.contentWindow?.postMessage({
+      type: "document-gallery-html-mode",
+      editing: isEditing
+    }, "*");
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditingMode();
+  }, [setEditingMode]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow || !event.data || typeof event.data !== "object") {
+        return;
+      }
+      if (event.data.type === "document-gallery-html-ready") {
+        setEditingMode();
+      }
+      if (event.data.type === "document-gallery-html-change" && typeof event.data.content === "string") {
+        emitContentChange(event.data.content);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [setEditingMode]);
+
+  return (
+    <iframe
+      ref={frameRef}
+      className="reader-frame"
+      data-editing={isEditing ? "true" : undefined}
+      sandbox="allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts"
+      srcDoc={sourceDocument}
+      title={item.title}
+      onLoad={setEditingMode}
+    />
   );
 }
 

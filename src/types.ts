@@ -35,6 +35,14 @@ export type LibraryStatusResponse = {
   changedAt: string | null;
 };
 
+export type LibraryContentResponse = {
+  content: {
+    relativePath: string;
+    mtimeMs: number;
+  };
+  version: number;
+};
+
 export type LibraryUploadResponse = {
   uploaded: Array<{
     relativePath: string;
@@ -47,6 +55,7 @@ export type LibraryMoveResponse = {
   moved: {
     relativePath: string;
     title: string;
+    kind: "file" | "folder";
   };
   changed: boolean;
   version: number;

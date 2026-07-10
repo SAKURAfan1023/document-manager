@@ -8,12 +8,13 @@ import {
   createLibraryFolder,
   createLibraryIndexState,
   deleteLibraryEntry,
-  moveLibraryFile,
+  moveLibraryEntry,
   openLibraryFile,
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
-  uploadLibraryFiles
+  uploadLibraryFiles,
+  writeLibraryContent
 } from "../server/library.mjs";
 
 const PNG_SAMPLE = Buffer.from(
@@ -136,6 +137,40 @@ describe("scanLibrary", () => {
   });
 });
 
+describe("writeLibraryContent", () => {
+  it("仅写回 library 内的 HTML 与 Markdown 文件", async () => {
+    const result = await writeLibraryContent({
+      libraryDir,
+      relativePath: "S1/子主题/说明.md",
+      content: "# 已更新\n\n新正文"
+    });
+
+    expect(result.content.relativePath).toBe("S1/子主题/说明.md");
+    expect(result.content.mtimeMs).toBeTypeOf("number");
+    expect(await fs.readFile(path.join(libraryDir, "S1", "子主题", "说明.md"), "utf8")).toBe("# 已更新\n\n新正文");
+  });
+
+  it("拒绝 library 外路径、非编辑类型与目录", async () => {
+    await expect(writeLibraryContent({
+      libraryDir,
+      relativePath: "../DESIGN.md",
+      content: "nope"
+    })).rejects.toMatchObject({ statusCode: 403 });
+
+    await expect(writeLibraryContent({
+      libraryDir,
+      relativePath: "misc.bin",
+      content: "nope"
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(writeLibraryContent({
+      libraryDir,
+      relativePath: "S1",
+      content: "nope"
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("createLibraryIndexState", () => {
   it("记录变更并只清理对应扫描版本", () => {
     const state = createLibraryIndexState();
@@ -228,9 +263,9 @@ describe("createLibraryFolder", () => {
   });
 });
 
-describe("moveLibraryFile", () => {
+describe("moveLibraryEntry", () => {
   it("移动文件并迁移 metadata", async () => {
-    const result = await moveLibraryFile({
+    const result = await moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "S1/子主题/说明.md",
@@ -240,7 +275,8 @@ describe("moveLibraryFile", () => {
     expect(result).toEqual({
       moved: {
         relativePath: "说明.md",
-        title: "说明"
+        title: "说明",
+        kind: "file"
       },
       changed: true
     });
@@ -264,7 +300,7 @@ describe("moveLibraryFile", () => {
   it("移动到已有同名文件的目录时自动改名", async () => {
     await fs.writeFile(path.join(libraryDir, "S1", "说明.md"), "# 已存在");
 
-    const result = await moveLibraryFile({
+    const result = await moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "S1/子主题/说明.md",
@@ -274,7 +310,8 @@ describe("moveLibraryFile", () => {
     expect(result).toEqual({
       moved: {
         relativePath: "S1/说明 2.md",
-        title: "说明 2"
+        title: "说明 2",
+        kind: "file"
       },
       changed: true
     });
@@ -288,7 +325,7 @@ describe("moveLibraryFile", () => {
   });
 
   it("同目录移动视为无操作", async () => {
-    const result = await moveLibraryFile({
+    const result = await moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "S1/子主题/说明.md",
@@ -298,7 +335,8 @@ describe("moveLibraryFile", () => {
     expect(result).toEqual({
       moved: {
         relativePath: "S1/子主题/说明.md",
-        title: "说明"
+        title: "说明",
+        kind: "file"
       },
       changed: false
     });
@@ -308,14 +346,14 @@ describe("moveLibraryFile", () => {
   });
 
   it("阻止移动路径逃出 library", async () => {
-    await expect(moveLibraryFile({
+    await expect(moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "../DESIGN.md",
       targetPath: "S1"
     })).rejects.toMatchObject({ statusCode: 403 });
 
-    await expect(moveLibraryFile({
+    await expect(moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "S1/子主题/说明.md",
@@ -323,19 +361,52 @@ describe("moveLibraryFile", () => {
     })).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it("拒绝缺失源文件和目录源", async () => {
-    await expect(moveLibraryFile({
+  it("移动文件夹并迁移其中 metadata", async () => {
+    const result = await moveLibraryEntry({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1/子主题",
+      targetPath: ""
+    });
+
+    expect(result).toEqual({
+      moved: {
+        relativePath: "子主题",
+        title: "子主题",
+        kind: "folder"
+      },
+      changed: true
+    });
+    await expect(fs.stat(path.join(libraryDir, "子主题", "说明.md"))).resolves.toMatchObject({
+      isFile: expect.any(Function)
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["子主题/说明.md"]).toMatchObject({ title: "覆盖标题" });
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("拒绝缺失源文件、根目录和移动到自身子目录", async () => {
+    await expect(moveLibraryEntry({
       libraryDir,
       metaPath,
       sourcePath: "S1/missing.md",
       targetPath: ""
     })).rejects.toMatchObject({ statusCode: 404 });
 
-    await expect(moveLibraryFile({
+    await expect(moveLibraryEntry({
       libraryDir,
       metaPath,
-      sourcePath: "S1/子主题",
+      sourcePath: "",
       targetPath: ""
+    })).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(moveLibraryEntry({
+      libraryDir,
+      metaPath,
+      sourcePath: "S1",
+      targetPath: "S1/子主题"
     })).rejects.toMatchObject({ statusCode: 400 });
   });
 });
@@ -615,6 +686,36 @@ describe("library API", () => {
     }
   });
 
+  it("写回 HTML 内容后 status 变更并返回新的修改时间", async () => {
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/api/library/content`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/s1-followup-plan.html",
+          content: "<!doctype html><title>已更新</title><h1>新内容</h1>"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        content: {
+          relativePath: "S1/s1-followup-plan.html",
+          mtimeMs: expect.any(Number)
+        },
+        version: 1
+      });
+      expect(await fs.readFile(path.join(libraryDir, "S1", "s1-followup-plan.html"), "utf8")).toContain("新内容");
+
+      const dirtyStatus = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await dirtyStatus.json()).toMatchObject({ changed: true, version: 1 });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("移动后 status 变更，完整索引读取后清理标记", async () => {
     const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
 
@@ -630,7 +731,7 @@ describe("library API", () => {
 
       expect(moveResponse.status).toBe(200);
       expect(await moveResponse.json()).toMatchObject({
-        moved: { relativePath: "说明.md", title: "说明" },
+        moved: { relativePath: "说明.md", title: "说明", kind: "file" },
         changed: true,
         version: 1
       });
