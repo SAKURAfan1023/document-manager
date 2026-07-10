@@ -78,6 +78,17 @@ export type LibraryDeleteEntryResponse = {
   version: number;
 };
 
+export type LibraryRenameEntryResponse = {
+  renamed: {
+    previousRelativePath: string;
+    relativePath: string;
+    title: string;
+    kind: "file" | "folder";
+  };
+  changed: boolean;
+  version: number;
+};
+
 export type LibraryNativeOpenMode = "system" | "wps";
 
 export type LibraryOpenResponse = {

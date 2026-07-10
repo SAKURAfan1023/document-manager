@@ -99,6 +99,10 @@ function sanitizeFolderName(folderName) {
   return baseName;
 }
 
+function sanitizeEntryName(entryName, isDirectory) {
+  return isDirectory ? sanitizeFolderName(entryName) : sanitizeUploadFileName(entryName);
+}
+
 async function resolveAvailableFilePath(targetDir, fileName) {
   const parsed = path.parse(fileName);
   let candidate = path.join(targetDir, fileName);
@@ -749,6 +753,92 @@ export async function moveLibraryEntry(options = {}) {
   return {
     moved: {
       relativePath: movedRelativePath,
+      title: isDirectory ? path.basename(destination) : titleFromFileName(path.basename(destination)),
+      kind: isDirectory ? "folder" : "file"
+    },
+    changed: true
+  };
+}
+
+export async function renameLibraryEntry(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
+  const sourceEntry = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+
+  if (!sourceEntry) {
+    throw createLibraryError("重命名路径不在 library 内", 403);
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.stat(sourceEntry);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("重命名目标不存在", 404);
+    }
+    throw error;
+  }
+
+  const isDirectory = sourceStat.isDirectory();
+  if (!sourceStat.isFile() && !isDirectory) {
+    throw createLibraryError("只能重命名文件或文件夹", 400);
+  }
+
+  const sourceRelativePath = normalizeRelativePath(path.relative(libraryDir, sourceEntry));
+  if (!sourceRelativePath && isDirectory) {
+    throw createLibraryError("不能重命名 library 根目录", 400);
+  }
+
+  const name = sanitizeEntryName(options.name ?? "", isDirectory);
+  if (!name) {
+    throw createLibraryError(`${isDirectory ? "文件夹" : "文件"}名称无效`, 400);
+  }
+
+  const destination = path.join(path.dirname(sourceEntry), name);
+  if (destination === sourceEntry) {
+    return {
+      renamed: {
+        previousRelativePath: sourceRelativePath,
+        relativePath: sourceRelativePath,
+        title: isDirectory ? path.basename(sourceEntry) : titleFromFileName(path.basename(sourceEntry)),
+        kind: isDirectory ? "folder" : "file"
+      },
+      changed: false
+    };
+  }
+
+  try {
+    await fs.access(destination);
+    throw createLibraryError("同级目录中已存在同名文件或文件夹", 409);
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  await fs.rename(sourceEntry, destination);
+  const renamedRelativePath = normalizeRelativePath(path.relative(libraryDir, destination));
+  const meta = await readMeta(metaPath);
+  if (meta.items && typeof meta.items === "object") {
+    const sourcePrefix = `${sourceRelativePath}/`;
+    let metaChanged = false;
+    for (const [itemPath, metaEntry] of Object.entries(meta.items)) {
+      if (itemPath === sourceRelativePath || (isDirectory && itemPath.startsWith(sourcePrefix))) {
+        const suffix = itemPath.slice(sourceRelativePath.length);
+        meta.items[`${renamedRelativePath}${suffix}`] = metaEntry;
+        delete meta.items[itemPath];
+        metaChanged = true;
+      }
+    }
+    if (metaChanged) {
+      await writeMeta(metaPath, meta);
+    }
+  }
+
+  return {
+    renamed: {
+      previousRelativePath: sourceRelativePath,
+      relativePath: renamedRelativePath,
       title: isDirectory ? path.basename(destination) : titleFromFileName(path.basename(destination)),
       kind: isDirectory ? "folder" : "file"
     },

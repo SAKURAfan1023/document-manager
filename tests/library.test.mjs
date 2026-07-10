@@ -10,6 +10,7 @@ import {
   deleteLibraryEntry,
   moveLibraryEntry,
   openLibraryFile,
+  renameLibraryEntry,
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
@@ -411,6 +412,73 @@ describe("moveLibraryEntry", () => {
   });
 });
 
+describe("renameLibraryEntry", () => {
+  it("重命名文件并迁移 metadata", async () => {
+    const result = await renameLibraryEntry({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题/说明.md",
+      name: "更新说明.md"
+    });
+
+    expect(result).toEqual({
+      renamed: {
+        previousRelativePath: "S1/子主题/说明.md",
+        relativePath: "S1/子主题/更新说明.md",
+        title: "更新说明",
+        kind: "file"
+      },
+      changed: true
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "更新说明.md"))).resolves.toMatchObject({
+      isFile: expect.any(Function)
+    });
+
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["S1/子主题/更新说明.md"]).toMatchObject({ title: "覆盖标题" });
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("重命名文件夹并迁移其中 metadata", async () => {
+    const result = await renameLibraryEntry({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题",
+      name: "已整理"
+    });
+
+    expect(result).toEqual({
+      renamed: {
+        previousRelativePath: "S1/子主题",
+        relativePath: "S1/已整理",
+        title: "已整理",
+        kind: "folder"
+      },
+      changed: true
+    });
+    const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    expect(meta.items["S1/已整理/说明.md"]).toMatchObject({ title: "覆盖标题" });
+    expect(meta.items["S1/子主题/说明.md"]).toBeUndefined();
+  });
+
+  it("拒绝非法名称与同级重名", async () => {
+    await fs.writeFile(path.join(libraryDir, "S1", "子主题", "同名.md"), "已存在");
+
+    await expect(renameLibraryEntry({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题/说明.md",
+      name: "同名.md"
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(renameLibraryEntry({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题/说明.md",
+      name: "..."
+    })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
 describe("deleteLibraryEntry", () => {
   it("删除文件并清理 metadata", async () => {
     const result = await deleteLibraryEntry({
@@ -746,6 +814,38 @@ describe("library API", () => {
 
       const cleanStatus = await fetch(`${server.baseUrl}/api/library/status`);
       expect(await cleanStatus.json()).toMatchObject({ changed: false, version: 1, changedAt: null });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("重命名后 status 变更并返回新路径", async () => {
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/api/library/rename`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/子主题/说明.md",
+          name: "更新说明.md"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        renamed: {
+          previousRelativePath: "S1/子主题/说明.md",
+          relativePath: "S1/子主题/更新说明.md",
+          title: "更新说明",
+          kind: "file"
+        },
+        changed: true,
+        version: 1
+      });
+
+      const status = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await status.json()).toMatchObject({ changed: true, version: 1 });
     } finally {
       await server.close();
     }

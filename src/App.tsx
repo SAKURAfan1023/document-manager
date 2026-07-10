@@ -24,6 +24,7 @@ import {
   PenLine,
   Presentation,
   RefreshCw,
+  Save,
   Search,
   Tags,
   Trash2,
@@ -64,6 +65,7 @@ import type {
   LibraryMoveResponse,
   LibraryNativeOpenMode,
   LibraryOpenResponse,
+  LibraryRenameEntryResponse,
   LibraryNode,
   LibraryRevealResponse,
   LibraryResponse,
@@ -80,7 +82,7 @@ type TopicOption = {
 };
 
 type UploadState = {
-  status: "idle" | "dragging" | "uploading" | "moving" | "creating" | "deleting" | "success" | "error";
+  status: "idle" | "dragging" | "uploading" | "moving" | "creating" | "deleting" | "renaming" | "success" | "error";
   targetPath: string;
   message: string;
 };
@@ -218,8 +220,9 @@ const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
 const TREE_CONTEXT_MENU_WIDTH = 232;
-const TREE_CONTEXT_MENU_HEIGHT = 384;
+const TREE_CONTEXT_MENU_HEIGHT = 432;
 const READER_FLOAT_SIZE = 56;
+const READER_COMPACT_ACTION_GAP = 12;
 const READER_PANEL_HEIGHT = 76;
 const READER_PANEL_MOBILE_HEIGHT = 124;
 const READER_PANEL_MAX_WIDTH = 720;
@@ -515,6 +518,10 @@ function getReaderPanelSize(viewport: ViewportSize) {
   };
 }
 
+function getCompactReaderControlWidth(hasSaveButton: boolean) {
+  return hasSaveButton ? READER_FLOAT_SIZE * 2 + READER_COMPACT_ACTION_GAP : READER_FLOAT_SIZE;
+}
+
 function getDefaultReaderControlPosition(viewport = getViewportSize()): Point {
   return {
     x: viewport.width - READER_FLOAT_SIZE - READER_PANEL_MARGIN,
@@ -522,9 +529,17 @@ function getDefaultReaderControlPosition(viewport = getViewportSize()): Point {
   };
 }
 
-function clampReaderControlPosition(position: Point, viewport = getViewportSize()): Point {
+function clampReaderControlPosition(
+  position: Point,
+  viewport = getViewportSize(),
+  compactWidth = READER_FLOAT_SIZE
+): Point {
   return {
-    x: clamp(position.x, READER_PANEL_MARGIN / 2, viewport.width - READER_FLOAT_SIZE - READER_PANEL_MARGIN / 2),
+    x: clamp(
+      position.x,
+      READER_PANEL_MARGIN / 2 + compactWidth - READER_FLOAT_SIZE,
+      viewport.width - READER_FLOAT_SIZE - READER_PANEL_MARGIN / 2
+    ),
     y: clamp(position.y, READER_PANEL_MARGIN / 2, viewport.height - READER_FLOAT_SIZE - READER_PANEL_MARGIN / 2)
   };
 }
@@ -568,13 +583,15 @@ function getReaderControlTarget(
   ballPosition: Point,
   isExpanded: boolean,
   viewport: ViewportSize,
-  panelPlacement: ReaderPanelPlacement
+  panelPlacement: ReaderPanelPlacement,
+  hasCompactSaveButton: boolean
 ) {
   if (!isExpanded) {
+    const compactWidth = getCompactReaderControlWidth(hasCompactSaveButton);
     return {
-      x: ballPosition.x,
+      x: ballPosition.x - compactWidth + READER_FLOAT_SIZE,
       y: ballPosition.y,
-      width: READER_FLOAT_SIZE,
+      width: compactWidth,
       height: READER_FLOAT_SIZE,
       borderRadius: READER_FLOAT_SIZE / 2
     };
@@ -615,6 +632,21 @@ function findTreeNodeByPath(node: LibraryNode, targetPath: string): LibraryNode 
     }
   }
   return null;
+}
+
+function isSameOrDescendantPath(relativePath: string, ancestorPath: string) {
+  return relativePath === ancestorPath || relativePath.startsWith(`${ancestorPath}/`);
+}
+
+function replaceEntryPath(relativePath: string, previousPath: string, nextPath: string) {
+  if (!isSameOrDescendantPath(relativePath, previousPath)) {
+    return relativePath;
+  }
+  return `${nextPath}${relativePath.slice(previousPath.length)}`;
+}
+
+function entryNameFromRelativePath(relativePath: string) {
+  return relativePath.split("/").at(-1) ?? relativePath;
 }
 
 function sortItems(items: LibraryItem[], sortMode: SortMode) {
@@ -1363,6 +1395,25 @@ function useLibrary() {
     return payload as LibraryDeleteEntryResponse;
   }, [checkForChanges]);
 
+  const renameEntry = useCallback(async (relativePath: string, name: string) => {
+    const response = await fetch("/api/library/rename", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath, name })
+    });
+    const payload = await readJsonResponse<Partial<LibraryRenameEntryResponse> & { message?: string }>(
+      response,
+      "重命名接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `重命名失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryRenameEntryResponse;
+  }, [checkForChanges]);
+
   const revealPath = useCallback(async (relativePath: string, kind: "file" | "folder") => {
     const response = await fetch("/api/library/reveal", {
       method: "POST",
@@ -1443,11 +1494,11 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, revealPath, saveContent, uploadFiles };
+  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, revealPath, saveContent, uploadFiles } = useLibrary();
+  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
@@ -1572,6 +1623,29 @@ function App() {
     setSelectedPathInLocation(null);
   }, []);
 
+  const updatePathsAfterEntryMove = useCallback((previousPath: string, nextPath: string) => {
+    setActiveTopic((current) => replaceEntryPath(current, previousPath, nextPath));
+    setSelectedTreeFilePath((current) => current ? replaceEntryPath(current, previousPath, nextPath) : null);
+    const selectedPath = getSelectedPathFromLocation();
+    if (selectedPath) {
+      const nextSelectedPath = replaceEntryPath(selectedPath, previousPath, nextPath);
+      if (nextSelectedPath !== selectedPath) {
+        setSelectedPathInLocation(nextSelectedPath);
+      }
+    }
+  }, []);
+
+  const clearPathsAfterEntryDelete = useCallback((deletedPath: string) => {
+    setActiveTopic((current) => isSameOrDescendantPath(current, deletedPath)
+      ? parentPathFromRelativePath(deletedPath)
+      : current);
+    setSelectedTreeFilePath((current) => current && isSameOrDescendantPath(current, deletedPath) ? null : current);
+    const selectedPath = getSelectedPathFromLocation();
+    if (selectedPath && isSameOrDescendantPath(selectedPath, deletedPath)) {
+      setSelectedPathInLocation(null);
+    }
+  }, []);
+
   if (selectedPath && selectedItem) {
     return (
       <HoverTooltipProvider>
@@ -1625,7 +1699,10 @@ function App() {
         onTreeModeChange={changeTreeMode}
         onCreateFolder={createFolder}
         onDeleteEntry={deleteEntry}
+        onEntryDeleted={clearPathsAfterEntryDelete}
+        onEntryMoved={updatePathsAfterEntryMove}
         onMoveEntry={moveEntry}
+        onRenameEntry={renameEntry}
         onUploadFiles={uploadFiles}
       />
     </HoverTooltipProvider>
@@ -1668,7 +1745,10 @@ type LibraryHomeProps = {
   onTreeModeChange: (mode: TreeDisplayMode) => void;
   onCreateFolder: (parentPath: string, name: string) => Promise<LibraryCreateFolderResponse>;
   onDeleteEntry: (relativePath: string) => Promise<LibraryDeleteEntryResponse>;
+  onEntryDeleted: (relativePath: string) => void;
+  onEntryMoved: (previousPath: string, nextPath: string) => void;
   onMoveEntry: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
+  onRenameEntry: (relativePath: string, name: string) => Promise<LibraryRenameEntryResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
 
@@ -1696,8 +1776,11 @@ function LibraryHome(props: LibraryHomeProps) {
   const {
     onCreateFolder,
     onDeleteEntry,
+    onEntryDeleted,
+    onEntryMoved,
     onMoveEntry,
     onOpenExternal,
+    onRenameEntry,
     onRevealPath,
     onSetDefaultOpenMode,
     onTopicChange,
@@ -1864,7 +1947,9 @@ function LibraryHome(props: LibraryHomeProps) {
           ? `已移动${result.moved.kind === "folder" ? "文件夹" : "文件"}到 ${dragTargetLabel(targetPath)}`
           : `${result.moved.kind === "folder" ? "文件夹" : "文件"}已在此目录`
       });
-      onTopicChange(targetPath);
+      if (result.changed) {
+        onEntryMoved(sourcePath, result.moved.relativePath);
+      }
     } catch (moveError) {
       setUploadState({
         status: "error",
@@ -1872,7 +1957,7 @@ function LibraryHome(props: LibraryHomeProps) {
         message: moveError instanceof Error ? moveError.message : "移动失败"
       });
     }
-  }, [onMoveEntry, onTopicChange]);
+  }, [onEntryMoved, onMoveEntry]);
 
   const dropToTopic = useCallback((targetPath: string, event: ReactDragEvent<HTMLElement>) => {
     event.preventDefault();
@@ -2098,6 +2183,56 @@ function LibraryHome(props: LibraryHomeProps) {
       });
   }, [props.libraryRoot, treeContextMenu]);
 
+  const renameTargetFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target || (target.kind === "folder" && !target.path)) {
+      return;
+    }
+
+    setTreeContextMenu(null);
+    const name = window.prompt(
+      `重命名${target.kind === "folder" ? "文件夹" : "文件"}`,
+      entryNameFromRelativePath(target.path)
+    )?.trim();
+    if (name === undefined) {
+      return;
+    }
+    if (!name) {
+      setUploadState({
+        status: "error",
+        targetPath: target.path,
+        message: `${target.kind === "folder" ? "文件夹" : "文件"}名称不能为空`
+      });
+      return;
+    }
+
+    setUploadState({
+      status: "renaming",
+      targetPath: target.path,
+      message: `正在重命名${target.kind === "folder" ? "文件夹" : "文件"} ${target.label}`
+    });
+
+    void (async () => {
+      try {
+        const result = await onRenameEntry(target.path, name);
+        if (result.changed) {
+          onEntryMoved(result.renamed.previousRelativePath, result.renamed.relativePath);
+        }
+        setUploadState({
+          status: "success",
+          targetPath: result.renamed.relativePath,
+          message: result.changed ? `已重命名为 ${result.renamed.title}` : "名称未变化"
+        });
+      } catch (renameError) {
+        setUploadState({
+          status: "error",
+          targetPath: target.path,
+          message: renameError instanceof Error ? renameError.message : "重命名失败"
+        });
+      }
+    })();
+  }, [onEntryMoved, onRenameEntry, treeContextMenu]);
+
   const deleteTargetFromContext = useCallback(() => {
     const target = treeContextMenu?.target;
     if (!target || (target.kind === "folder" && !target.path)) {
@@ -2129,7 +2264,7 @@ function LibraryHome(props: LibraryHomeProps) {
           targetPath: parentPath,
           message: `已删除${targetKindLabel} ${result.deleted.title}`
         });
-        onTopicChange(parentPath);
+        onEntryDeleted(result.deleted.relativePath);
       } catch (deleteError) {
         setUploadState({
           status: "error",
@@ -2138,7 +2273,7 @@ function LibraryHome(props: LibraryHomeProps) {
         });
       }
     })();
-  }, [expandFolderPath, onDeleteEntry, onTopicChange, treeContextMenu]);
+  }, [expandFolderPath, onDeleteEntry, onEntryDeleted, treeContextMenu]);
 
   const revealPathInManager = useCallback((relativePath: string, kind: "file" | "folder") => {
     void (async () => {
@@ -2278,6 +2413,15 @@ function LibraryHome(props: LibraryHomeProps) {
           <button type="button" role="menuitem" onClick={createFolderFromContext}>
             <FolderPlus aria-hidden="true" />
             <span>新建文件夹</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={treeContextMenu.target.kind === "folder" && !treeContextMenu.target.path}
+            onClick={renameTargetFromContext}
+          >
+            <PenLine aria-hidden="true" />
+            <span>{treeContextMenu.target.kind === "folder" ? "重命名文件夹" : "重命名文件"}</span>
           </button>
           <button
             type="button"
@@ -2970,7 +3114,6 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
   const queuedContentRef = useRef<string | null>(null);
   const lastQueuedSaveRef = useRef<Promise<void> | null>(null);
   const saveQueueRef = useRef<Promise<void> | null>(null);
-  const saveTimerRef = useRef<number | null>(null);
   const currentPathRef = useRef(item.relativePath);
   const currentIndex = navigationItems.findIndex((candidate) => candidate.relativePath === item.relativePath);
   const previous = currentIndex > 0 ? navigationItems[currentIndex - 1] : null;
@@ -3061,64 +3204,35 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
     return await saveTask;
   }, [canEdit, item.relativePath, onSave]);
 
-  useEffect(() => {
-    if (
-      !canEdit
-      || (saveState !== "idle" && saveState !== "saved")
-      || editorContent === lastSavedContentRef.current
-    ) {
-      return;
-    }
+  const hasUnsavedChanges = canEdit && editorContent !== lastSavedContentRef.current;
 
-    const timerId = window.setTimeout(() => {
-      saveTimerRef.current = null;
-      void queueSave(editorContent).catch(() => {});
-    }, 500);
-    saveTimerRef.current = timerId;
-
-    return () => {
-      window.clearTimeout(timerId);
-      if (saveTimerRef.current === timerId) {
-        saveTimerRef.current = null;
-      }
-    };
-  }, [canEdit, editorContent, queueSave, saveState]);
-
-  const flushSave = useCallback(async () => {
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-
-    if (!canEdit || saveState === "loading") {
+  const saveCurrentContent = useCallback(async () => {
+    if (!canEdit || saveState === "loading" || !hasUnsavedChanges) {
       return;
     }
 
     try {
       await queueSave(editorContentRef.current);
     } catch {
-      // 保留错误状态，仍允许用户切换文件或离开阅读器。
+      // 保留错误状态，允许用户继续修改后再次手动保存。
     }
-  }, [canEdit, queueSave, saveState]);
+  }, [canEdit, hasUnsavedChanges, queueSave, saveState]);
 
-  const changeReaderMode = useCallback(async () => {
+  const changeReaderMode = useCallback(() => {
     if (readerMode === "edit") {
-      await flushSave();
       setReaderMode("preview");
       return;
     }
     setReaderMode("edit");
-  }, [flushSave, readerMode]);
+  }, [readerMode]);
 
-  const navigateReader = useCallback(async (relativePath: string) => {
-    await flushSave();
+  const navigateReader = useCallback((relativePath: string) => {
     onOpen(relativePath);
-  }, [flushSave, onOpen]);
+  }, [onOpen]);
 
-  const leaveReader = useCallback(async () => {
-    await flushSave();
+  const leaveReader = useCallback(() => {
     onBack();
-  }, [flushSave, onBack]);
+  }, [onBack]);
 
   const updateEditorContent = useCallback((content: string) => {
     editorContentRef.current = content;
@@ -3165,11 +3279,13 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
         navigationItems={navigationItems}
         next={next}
         previous={previous}
+        hasUnsavedChanges={hasUnsavedChanges}
         saveState={saveState}
-        onBack={() => void leaveReader()}
-        onOpen={(relativePath) => void navigateReader(relativePath)}
+        onBack={leaveReader}
+        onOpen={navigateReader}
         onRefresh={onRefresh}
-        onToggleMode={() => void changeReaderMode()}
+        onSave={() => void saveCurrentContent()}
+        onToggleMode={changeReaderMode}
         onToggleOpen={setIsControlsOpen}
       />
       {item.kind === "html" && htmlPreviewSource && !editorError ? (
@@ -3194,6 +3310,7 @@ function Reader({ item, navigationItems, onBack, onOpen, onRefresh, onSave }: Re
 
 type ReaderControlsProps = {
   canEdit: boolean;
+  hasUnsavedChanges: boolean;
   isOpen: boolean;
   item: LibraryItem;
   mode: ReaderMode;
@@ -3204,6 +3321,7 @@ type ReaderControlsProps = {
   onBack: () => void;
   onOpen: (relativePath: string) => void;
   onRefresh: () => void;
+  onSave: () => void;
   onToggleMode: () => void;
   onToggleOpen: (isOpen: boolean) => void;
 };
@@ -3211,15 +3329,22 @@ type ReaderControlsProps = {
 function ReaderControls(props: ReaderControlsProps) {
   const prefersReducedMotion = useReducedMotion();
   const tooltip = useContext(HoverTooltipContext);
+  const showSave = props.canEdit && props.mode === "edit";
+  const saveDisabled = !props.hasUnsavedChanges || props.saveState === "loading" || props.saveState === "saving";
+  const compactWidth = getCompactReaderControlWidth(showSave);
   const [viewport, setViewport] = useState(() => getViewportSize());
   const [ballPosition, setBallPosition] = useState(() => {
     const stored = readStoredReaderControlState();
-    return clampReaderControlPosition(stored?.position ?? getDefaultReaderControlPosition(), getViewportSize());
+    return clampReaderControlPosition(stored?.position ?? getDefaultReaderControlPosition(), getViewportSize(), compactWidth);
   });
   const [panelPlacement, setPanelPlacement] = useState(() => {
     const initialViewport = getViewportSize();
     const stored = readStoredReaderControlState();
-    const initialPosition = clampReaderControlPosition(stored?.position ?? getDefaultReaderControlPosition(initialViewport), initialViewport);
+    const initialPosition = clampReaderControlPosition(
+      stored?.position ?? getDefaultReaderControlPosition(initialViewport),
+      initialViewport,
+      compactWidth
+    );
     return getReaderPanelPlacement(initialPosition, initialViewport);
   });
   const [isDragging, setIsDragging] = useState(false);
@@ -3236,7 +3361,7 @@ function ReaderControls(props: ReaderControlsProps) {
       const nextViewport = getViewportSize();
       setViewport(nextViewport);
       setBallPosition((current) => {
-        const next = clampReaderControlPosition(current, nextViewport);
+        const next = clampReaderControlPosition(current, nextViewport, compactWidth);
         const nextPanelPlacement = getReaderPanelPlacement(next, nextViewport);
         setPanelPlacement(nextPanelPlacement);
         saveReaderControlState(next, nextPanelPlacement);
@@ -3246,9 +3371,13 @@ function ReaderControls(props: ReaderControlsProps) {
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [compactWidth]);
 
-  const dockTarget = getReaderControlTarget(ballPosition, props.isOpen, viewport, panelPlacement);
+  useEffect(() => {
+    setBallPosition((current) => clampReaderControlPosition(current, viewport, compactWidth));
+  }, [compactWidth, viewport]);
+
+  const dockTarget = getReaderControlTarget(ballPosition, props.isOpen, viewport, panelPlacement, showSave);
   const dockTransition: Transition = isDragging || prefersReducedMotion
     ? { duration: 0 }
     : { type: "spring", stiffness: 430, damping: 38, mass: 0.72 };
@@ -3364,7 +3493,7 @@ function ReaderControls(props: ReaderControlsProps) {
     setBallPosition(clampReaderControlPosition({
       x: dragState.startPosition.x + deltaX,
       y: dragState.startPosition.y + deltaY
-    }, viewport));
+    }, viewport, compactWidth));
   };
 
   const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -3387,7 +3516,7 @@ function ReaderControls(props: ReaderControlsProps) {
     const nextPosition = clampReaderControlPosition({
       x: dragState.startPosition.x + event.clientX - dragState.startX,
       y: dragState.startPosition.y + event.clientY - dragState.startY
-    }, viewport);
+    }, viewport, compactWidth);
     const nextPanelPlacement = getReaderPanelPlacement(nextPosition, viewport);
     setBallPosition(nextPosition);
     setPanelPlacement(nextPanelPlacement);
@@ -3423,6 +3552,21 @@ function ReaderControls(props: ReaderControlsProps) {
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
         >
+          {!props.isOpen && showSave ? (
+            <m.button
+              className="reader-float-button reader-save-button"
+              type="button"
+              aria-label="保存修改"
+              disabled={saveDisabled}
+              title={saveDisabled ? "没有待保存的修改" : "保存修改"}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={props.onSave}
+              whileTap={{ scale: 0.94 }}
+            >
+              <Save aria-hidden="true" />
+            </m.button>
+          ) : null}
+
           <m.button
             className="reader-float-button"
             type="button"
@@ -3534,6 +3678,19 @@ function ReaderControls(props: ReaderControlsProps) {
                       variants={actionButtonVariants}
                     >
                       {props.mode === "edit" ? <Eye aria-hidden="true" /> : <PenLine aria-hidden="true" />}
+                    </m.button>
+                  ) : null}
+                  {showSave ? (
+                    <m.button
+                      className="icon-button reader-save-button"
+                      type="button"
+                      aria-label="保存修改"
+                      disabled={saveDisabled}
+                      title={saveDisabled ? "没有待保存的修改" : "保存修改"}
+                      onClick={props.onSave}
+                      variants={actionButtonVariants}
+                    >
+                      <Save aria-hidden="true" />
                     </m.button>
                   ) : null}
                   <m.a

@@ -1389,8 +1389,18 @@ a {
 
 .reader-control-dock.compact {
   justify-content: center;
-  padding: 6px;
+  gap: 12px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  padding: 0;
   cursor: grab;
+}
+
+.reader-control-dock.compact .reader-float-button {
+  border: 1px solid oklch(88% 0.004 270 / 70%);
+  backdrop-filter: saturate(180%) blur(20px);
 }
 
 .reader-control-dock.expanded {
@@ -1412,6 +1422,16 @@ a {
   color: var(--on-dark);
   cursor: pointer;
   touch-action: none;
+}
+
+.reader-save-button {
+  background: var(--blue);
+  color: var(--on-dark);
+}
+
+.reader-save-button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .reader-float-icon {

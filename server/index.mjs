@@ -14,6 +14,7 @@ import {
   getLibraryErrorStatus,
   moveLibraryEntry,
   openLibraryFile,
+  renameLibraryEntry,
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
@@ -205,6 +206,21 @@ export function createApiHandler(options = {}) {
         sendJson(res, getLibraryErrorStatus(error), {
           error: "LIBRARY_MOVE_FAILED",
           message: error instanceof Error ? error.message : "Unknown move error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/rename" && req.method === "POST") {
+      try {
+        const payload = await readJsonBody(req, requestUrl);
+        const result = await renameLibraryEntry({ ...payload, libraryDir, metaPath });
+        const status = result.changed ? state.markChanged() : state.getStatus();
+        sendJson(res, 200, { ...result, version: status.version });
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_RENAME_FAILED",
+          message: error instanceof Error ? error.message : "Unknown rename error"
         });
       }
       return true;
