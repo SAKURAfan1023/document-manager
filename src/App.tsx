@@ -91,7 +91,6 @@ type UploadState = {
   message: string;
 };
 
-type TreeDisplayMode = "folders" | "all";
 type TreeDragAction = "upload" | "move";
 type ExternalOpenMode = "tab" | LibraryNativeOpenMode;
 type OpenModeDefaults = Partial<Record<FileVisualKind, ExternalOpenMode>>;
@@ -1646,7 +1645,6 @@ function App() {
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
-  const [treeMode, setTreeMode] = useState<TreeDisplayMode>("all");
   const [selectedTreeFilePath, setSelectedTreeFilePath] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("library");
   const [openModeDefaults, setOpenModeDefaults] = useState<OpenModeDefaults>(() => readOpenModeDefaults());
@@ -1756,13 +1754,6 @@ function App() {
     setSelectedTreeFilePath(relativePath);
   }, [items]);
 
-  const changeTreeMode = useCallback((mode: TreeDisplayMode) => {
-    setTreeMode(mode);
-    if (mode === "folders") {
-      setSelectedTreeFilePath(null);
-    }
-  }, []);
-
   const returnToLibrary = useCallback(() => {
     setSelectedPathInLocation(null);
   }, []);
@@ -1823,7 +1814,6 @@ function App() {
         query={query}
         sortMode={sortMode}
         tree={library?.tree ?? null}
-        treeMode={treeMode}
         topics={topics}
         visibleDetailTags={visibleDetailTags}
         selectedTreeFile={selectedTreeFile}
@@ -1841,7 +1831,6 @@ function App() {
         onSortChange={setSortMode}
         onTopicChange={selectTopic}
         onToggleDetailTag={toggleDetailTag}
-        onTreeModeChange={changeTreeMode}
         onCreateFolder={createFolder}
         onDeleteEntry={deleteEntry}
         onEntryDeleted={clearPathsAfterEntryDelete}
@@ -1871,7 +1860,6 @@ type LibraryHomeProps = {
   selectedTreeFilePath: string | null;
   sortMode: SortMode;
   tree: LibraryNode | null;
-  treeMode: TreeDisplayMode;
   topics: TopicOption[];
   visibleDetailTags: Set<DetailTagId>;
   onClearMissing: () => void;
@@ -1887,7 +1875,6 @@ type LibraryHomeProps = {
   onSortChange: (sortMode: SortMode) => void;
   onTopicChange: (topic: string) => void;
   onToggleDetailTag: (tagId: DetailTagId) => void;
-  onTreeModeChange: (mode: TreeDisplayMode) => void;
   onCreateFolder: (parentPath: string, name: string) => Promise<LibraryCreateFolderResponse>;
   onDeleteEntry: (relativePath: string) => Promise<LibraryDeleteEntryResponse>;
   onEntryDeleted: (relativePath: string) => void;
@@ -2722,16 +2709,6 @@ function LibraryHome(props: LibraryHomeProps) {
                 <ChevronDown aria-hidden="true" />
                 全折叠
               </button>
-              <button
-                className="panel-action"
-                type="button"
-                aria-pressed={props.treeMode === "all"}
-                title={props.treeMode === "all" ? "切换为只展示文件夹" : "切换为展示文件夹和文件"}
-                onClick={() => props.onTreeModeChange(props.treeMode === "all" ? "folders" : "all")}
-              >
-                <File aria-hidden="true" />
-                {props.treeMode === "all" ? "仅文件夹" : "显示文件"}
-              </button>
             </span>
             <input
               ref={fileInputRef}
@@ -2768,7 +2745,6 @@ function LibraryHome(props: LibraryHomeProps) {
               dragTarget={dragTarget}
               draggedEntryPath={draggedEntryPath}
               filesByTopic={filesByTopic}
-              mode={props.treeMode}
               root={props.tree}
               selectedFilePath={props.selectedTreeFilePath}
               onDragLeave={clearDragTarget}
@@ -2929,7 +2905,6 @@ type TopicTreeProps = {
   dragTarget: DragTargetState | null;
   draggedEntryPath: string | null;
   filesByTopic: Map<string, LibraryItem[]>;
-  mode: TreeDisplayMode;
   root: LibraryNode;
   selectedFilePath: string | null;
   onDragLeave: (event: ReactDragEvent<HTMLElement>) => void;
@@ -2959,7 +2934,6 @@ function TopicTree(props: TopicTreeProps) {
         dragTarget={props.dragTarget}
         draggedEntryPath={props.draggedEntryPath}
         filesByTopic={props.filesByTopic}
-        mode={props.mode}
         node={props.root}
         depth={0}
         selectedFilePath={props.selectedFilePath}
@@ -2990,7 +2964,6 @@ function TopicTreeNode({
   dragTarget,
   draggedEntryPath,
   filesByTopic,
-  mode,
   node,
   depth,
   selectedFilePath,
@@ -3010,7 +2983,7 @@ function TopicTreeNode({
   const isRoot = node.path === "";
   const isActive = node.path === activeTopic;
   const isDropTarget = dragTarget?.path === node.path;
-  const files = mode === "all" ? filesByTopic.get(node.path) ?? EMPTY_ITEMS : EMPTY_ITEMS;
+  const files = filesByTopic.get(node.path) ?? EMPTY_ITEMS;
   const canCollapse = node.children.length > 0 || files.length > 0;
   const isCollapsed = canCollapse && collapsedFolders.has(node.path);
   const nodeLabel = isRoot ? "全部主题" : node.name;
