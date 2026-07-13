@@ -3062,7 +3062,6 @@ function TopicTreeNode({
                   draggedEntryPath={draggedEntryPath}
                   filesByTopic={filesByTopic}
                   key={child.path}
-                  mode={mode}
                   node={child}
                   depth={depth + 1}
                   selectedFilePath={selectedFilePath}
