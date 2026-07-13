@@ -676,6 +676,12 @@ a {
   padding-bottom: 0;
 }
 
+.reader-context-menu-dismiss-layer {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+}
+
 .tree-context-menu button,
 .reader-context-menu button {
   display: flex;

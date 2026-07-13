@@ -3820,7 +3820,6 @@ function ReaderPane({
   const [saveState, setSaveState] = useState<EditorSaveState>(canEdit ? "loading" : "idle");
   const [readerContextMenu, setReaderContextMenu] = useState<ReaderContextMenuState | null>(null);
   const readerPaneRef = useRef<HTMLElement>(null);
-  const readerContextMenuRef = useRef<HTMLDivElement>(null);
   const editorContentRef = useRef("");
   const lastSavedContentRef = useRef("");
   const queuedContentRef = useRef<string | null>(null);
@@ -3971,22 +3970,14 @@ function ReaderPane({
       return;
     }
 
-    const closeMenu = (event: MouseEvent) => {
-      if (event.target instanceof Node && readerContextMenuRef.current?.contains(event.target)) {
-        return;
-      }
-      setReaderContextMenu(null);
-    };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setReaderContextMenu(null);
       }
     };
 
-    document.addEventListener("pointerdown", closeMenu);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("pointerdown", closeMenu);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [readerContextMenu]);
@@ -4089,30 +4080,32 @@ function ReaderPane({
 
   const readerContextMenuLayer = readerContextMenu && typeof document !== "undefined"
     ? createPortal(
-      <div
-        ref={readerContextMenuRef}
-        className="reader-context-menu"
-        role="menu"
-        style={{ left: readerContextMenu.x, top: readerContextMenu.y }}
-        onContextMenu={(event) => event.preventDefault()}
-      >
-        <button type="button" role="menuitem" onClick={revealReaderItem}>
-          <FolderSearch aria-hidden="true" />
-          <span>在本地文件管理器中显示</span>
-        </button>
-        <button type="button" role="menuitem" onClick={copyReaderPath}>
-          <Copy aria-hidden="true" />
-          <span>复制文件路径</span>
-        </button>
-        <button type="button" role="menuitem" onClick={() => openReaderItemExternally("tab")}>
-          <ExternalLink aria-hidden="true" />
-          <span>新标签页打开</span>
-        </button>
-        <button type="button" role="menuitem" onClick={() => openReaderItemExternally("system")}>
-          <File aria-hidden="true" />
-          <span>系统默认应用打开</span>
-        </button>
-      </div>,
+      <>
+        <div className="reader-context-menu-dismiss-layer" onPointerDown={() => setReaderContextMenu(null)} />
+        <div
+          className="reader-context-menu"
+          role="menu"
+          style={{ left: readerContextMenu.x, top: readerContextMenu.y }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button type="button" role="menuitem" onClick={revealReaderItem}>
+            <FolderSearch aria-hidden="true" />
+            <span>在本地文件管理器中显示</span>
+          </button>
+          <button type="button" role="menuitem" onClick={copyReaderPath}>
+            <Copy aria-hidden="true" />
+            <span>复制文件路径</span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => openReaderItemExternally("tab")}>
+            <ExternalLink aria-hidden="true" />
+            <span>新标签页打开</span>
+          </button>
+          <button type="button" role="menuitem" onClick={() => openReaderItemExternally("system")}>
+            <File aria-hidden="true" />
+            <span>系统默认应用打开</span>
+          </button>
+        </div>
+      </>,
       document.body
     )
     : null;
