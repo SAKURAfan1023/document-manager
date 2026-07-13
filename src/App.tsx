@@ -129,6 +129,11 @@ type TreeContextMenuState = {
   target: TreeContextTarget;
 };
 
+type ReaderContextMenuState = {
+  x: number;
+  y: number;
+};
+
 type TreeEntryDragPayload = {
   relativePath: string;
   kind: "file" | "folder";
@@ -230,6 +235,7 @@ const MarkdownRichEditor = lazy(() => import("./MarkdownRichEditor"));
 const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
+const READER_OUTLINE_POSITION_STORAGE_KEY = "document-gallery-reader-outline-position";
 const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-settings";
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
@@ -244,6 +250,8 @@ const READER_PANEL_MOBILE_HEIGHT = 124;
 const READER_PANEL_MAX_WIDTH = 720;
 const READER_PANEL_MARGIN = 24;
 const READER_DRAG_THRESHOLD = 4;
+const READER_OUTLINE_TRIGGER_SIZE = 40;
+const READER_OUTLINE_MARGIN = 8;
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
 type Point = {
@@ -317,6 +325,17 @@ const HoverTooltipContext = createContext<HoverTooltipContextValue>({
 type MarkdownBlock =
   | { type: "h1" | "h2" | "h3" | "p"; text: string }
   | { type: "ul"; items: string[] };
+
+type ReaderOutlineItem = {
+  index: number;
+  level: 1 | 2 | 3;
+  text: string;
+};
+
+type ReaderOutlineScrollRequest = {
+  index: number;
+  requestId: number;
+};
 
 type TextPreviewBoundaryProps = {
   children: React.ReactNode;
@@ -681,6 +700,48 @@ function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlac
     window.localStorage.setItem(READER_CONTROLS_STORAGE_KEY, JSON.stringify({ ...position, panelPlacement, size }));
   } catch {
     // The floating control still works if storage is unavailable.
+  }
+}
+
+function getDefaultReaderOutlinePosition(viewport = getViewportSize()): Point {
+  return {
+    x: 0,
+    y: clamp(viewport.height * 0.18, 88, 164)
+  };
+}
+
+function clampReaderOutlinePosition(position: Point, viewport = getViewportSize()): Point {
+  return {
+    x: clamp(position.x, 0, Math.max(0, viewport.width - READER_OUTLINE_TRIGGER_SIZE)),
+    y: clamp(
+      position.y,
+      READER_OUTLINE_MARGIN,
+      Math.max(READER_OUTLINE_MARGIN, viewport.height - READER_OUTLINE_TRIGGER_SIZE - READER_OUTLINE_MARGIN)
+    )
+  };
+}
+
+function readStoredReaderOutlinePosition(): Point | null {
+  try {
+    const raw = window.localStorage.getItem(READER_OUTLINE_POSITION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<Point>;
+    if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+      return { x: parsed.x, y: parsed.y };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function saveReaderOutlinePosition(position: Point) {
+  try {
+    window.localStorage.setItem(READER_OUTLINE_POSITION_STORAGE_KEY, JSON.stringify(position));
+  } catch {
+    // The directory trigger keeps its in-memory position if storage is unavailable.
   }
 }
 
@@ -1174,6 +1235,24 @@ function parseMarkdown(source: string): MarkdownBlock[] {
 
   flushList();
   return blocks;
+}
+
+function extractMarkdownOutline(source: string): ReaderOutlineItem[] {
+  const outline: ReaderOutlineItem[] = [];
+
+  for (const line of source.split(/\r?\n/)) {
+    const heading = line.trim().match(/^(#{1,3})\s+(.+)$/);
+    if (!heading) {
+      continue;
+    }
+    outline.push({
+      index: outline.length,
+      level: heading[1].length as 1 | 2 | 3,
+      text: heading[2]
+    });
+  }
+
+  return outline;
 }
 
 function loadTextContent(url: string) {
@@ -1812,11 +1891,14 @@ function App() {
       <HoverTooltipProvider>
         <Reader
           item={selectedItem}
+          libraryRoot={library?.root ?? ""}
           navigationItems={filteredItems.length ? filteredItems : items}
           onBack={returnToLibrary}
           onOpen={openItem}
+          onOpenExternal={openExternalItem}
           onReplacePrimary={replaceSelectedPathInLocation}
           onRefresh={refresh}
+          onRevealPath={revealPath}
           onSave={saveContent}
         />
       </HoverTooltipProvider>
@@ -3389,11 +3471,14 @@ function FileCard({
 
 type ReaderProps = {
   item: LibraryItem;
+  libraryRoot: string;
   navigationItems: LibraryItem[];
   onBack: () => void;
   onOpen: (relativePath: string) => void;
+  onOpenExternal: (item: LibraryItem, mode?: ExternalOpenMode) => Promise<void>;
   onReplacePrimary: (relativePath: string) => void;
   onRefresh: () => void;
+  onRevealPath: (relativePath: string, kind: "file" | "folder") => Promise<LibraryRevealResponse>;
   onSave: (relativePath: string, content: string) => Promise<LibraryContentResponse>;
 };
 
@@ -3444,7 +3529,7 @@ function normalizeReaderPaneWeights(panes: ReaderPaneDefinition[]) {
   return panes.map((pane) => ({ ...pane, weight: pane.weight / total }));
 }
 
-function Reader({ item, navigationItems, onBack, onReplacePrimary, onRefresh, onSave }: ReaderProps) {
+function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, onReplacePrimary, onRefresh, onRevealPath, onSave }: ReaderProps) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const saveHandlersRef = useRef(new Map<string, () => Promise<boolean>>());
   const resizeStateRef = useRef<{
@@ -3633,13 +3718,16 @@ function Reader({ item, navigationItems, onBack, onReplacePrimary, onRefresh, on
                 isMulti={panes.length > 1}
                 isPrimary={index === 0}
                 item={paneItem}
+                libraryRoot={libraryRoot}
                 navigationItems={navigationItems}
                 onAddPane={addPane}
                 onBack={() => requestAction({ type: "exit" })}
                 onClose={requestPaneClose}
                 onDirtyChange={updateDirty}
                 onOpen={requestPaneChange}
+                onOpenExternal={onOpenExternal}
                 onRefresh={onRefresh}
+                onRevealPath={onRevealPath}
                 onRegisterSave={registerSave}
                 onSave={onSave}
               />
@@ -3708,13 +3796,16 @@ function ReaderPane({
   isMulti,
   isPrimary,
   item,
+  libraryRoot,
   navigationItems,
   onAddPane,
   onBack,
   onClose,
   onDirtyChange,
   onOpen,
+  onOpenExternal,
   onRefresh,
+  onRevealPath,
   onRegisterSave,
   onSave
 }: ReaderPaneProps) {
@@ -3723,8 +3814,13 @@ function ReaderPane({
   const [readerMode, setReaderMode] = useState<ReaderMode>("preview");
   const [editorContent, setEditorContent] = useState("");
   const [htmlPreviewSource, setHtmlPreviewSource] = useState("");
+  const [htmlOutline, setHtmlOutline] = useState<ReaderOutlineItem[]>([]);
+  const [htmlOutlineScrollRequest, setHtmlOutlineScrollRequest] = useState<ReaderOutlineScrollRequest | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<EditorSaveState>(canEdit ? "loading" : "idle");
+  const [readerContextMenu, setReaderContextMenu] = useState<ReaderContextMenuState | null>(null);
+  const readerPaneRef = useRef<HTMLElement>(null);
+  const readerContextMenuRef = useRef<HTMLDivElement>(null);
   const editorContentRef = useRef("");
   const lastSavedContentRef = useRef("");
   const queuedContentRef = useRef<string | null>(null);
@@ -3739,6 +3835,8 @@ function ReaderPane({
     currentPathRef.current = item.relativePath;
     setReaderMode("preview");
     setEditorError(null);
+    setHtmlOutline([]);
+    setHtmlOutlineScrollRequest(null);
     queuedContentRef.current = null;
     lastQueuedSaveRef.current = null;
 
@@ -3784,24 +3882,30 @@ function ReaderPane({
   }, [canEdit, item.kind, item.relativePath, item.url]);
 
   const queueSave = useCallback(async (content: string) => {
-    if (!canEdit || content === lastSavedContentRef.current) {
+    const contentToSave = item.kind === "html" ? stripDocumentGalleryEditingState(content) : content;
+
+    if (!canEdit || contentToSave === lastSavedContentRef.current) {
       return;
     }
 
-    if (queuedContentRef.current === content && lastQueuedSaveRef.current) {
+    if (queuedContentRef.current === contentToSave && lastQueuedSaveRef.current) {
       return await lastQueuedSaveRef.current;
     }
 
     const relativePath = item.relativePath;
-    queuedContentRef.current = content;
+    queuedContentRef.current = contentToSave;
     setSaveState("saving");
     setEditorError(null);
     const saveTask = (saveQueueRef.current ?? Promise.resolve())
       .catch(() => undefined)
       .then(async () => {
-        await onSave(relativePath, content);
-        lastSavedContentRef.current = content;
+        await onSave(relativePath, contentToSave);
+        lastSavedContentRef.current = contentToSave;
         if (currentPathRef.current === relativePath && editorContentRef.current === content) {
+          if (content !== contentToSave) {
+            editorContentRef.current = contentToSave;
+            setEditorContent(contentToSave);
+          }
           queuedContentRef.current = null;
           setSaveState("saved");
         }
@@ -3818,7 +3922,7 @@ function ReaderPane({
     lastQueuedSaveRef.current = saveTask;
     saveQueueRef.current = saveTask.catch(() => undefined);
     return await saveTask;
-  }, [canEdit, item.relativePath, onSave]);
+  }, [canEdit, item.kind, item.relativePath, onSave]);
 
   const hasUnsavedChanges = canEdit && editorContent !== lastSavedContentRef.current;
 
@@ -3852,12 +3956,95 @@ function ReaderPane({
     onBack();
   }, [onBack]);
 
+  const openReaderContextMenuAt = useCallback((clientX: number, clientY: number) => {
+    const position = contextMenuPositionFromAnchor(clientX, clientY, TREE_CONTEXT_MENU_WIDTH, 176);
+    setReaderContextMenu(position);
+  }, []);
+
+  const openReaderContextMenu = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    openReaderContextMenuAt(event.clientX, event.clientY);
+  }, [openReaderContextMenuAt]);
+
+  useEffect(() => {
+    if (!readerContextMenu) {
+      return;
+    }
+
+    const closeMenu = (event: MouseEvent) => {
+      if (event.target instanceof Node && readerContextMenuRef.current?.contains(event.target)) {
+        return;
+      }
+      setReaderContextMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setReaderContextMenu(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [readerContextMenu]);
+
+  const copyReaderPath = useCallback(() => {
+    setReaderContextMenu(null);
+    void copyTextToClipboard(joinLibraryPath(libraryRoot, item.relativePath)).catch((copyError) => {
+      window.alert(copyError instanceof Error ? copyError.message : "复制文件路径失败");
+    });
+  }, [item.relativePath, libraryRoot]);
+
+  const revealReaderItem = useCallback(() => {
+    setReaderContextMenu(null);
+    void onRevealPath(item.relativePath, "file").catch((revealError) => {
+      window.alert(revealError instanceof Error ? revealError.message : "打开本地文件管理器失败");
+    });
+  }, [item.relativePath, onRevealPath]);
+
+  const openReaderItemExternally = useCallback((mode: ExternalOpenMode) => {
+    setReaderContextMenu(null);
+    void onOpenExternal(item, mode).catch((openError) => {
+      window.alert(openError instanceof Error ? openError.message : "外部打开失败");
+    });
+  }, [item, onOpenExternal]);
+
   const updateEditorContent = useCallback((content: string) => {
     editorContentRef.current = content;
     setEditorContent(content);
     setEditorError(null);
     setSaveState(content === lastSavedContentRef.current ? "saved" : "idle");
   }, []);
+
+  const markdownOutline = useMemo(
+    () => item.kind === "markdown" ? extractMarkdownOutline(editorContent) : [],
+    [editorContent, item.kind]
+  );
+  const supportsOutline = item.kind === "html" || item.kind === "markdown";
+  const isOutlineLoading = supportsOutline && saveState === "loading";
+  const outlineItems = item.kind === "html" ? htmlOutline : markdownOutline;
+
+  const scrollToOutlineItem = useCallback((outlineItem: ReaderOutlineItem) => {
+    if (item.kind === "html") {
+      setHtmlOutlineScrollRequest((current) => ({
+        index: outlineItem.index,
+        requestId: (current?.requestId ?? 0) + 1
+      }));
+      return;
+    }
+
+    const container = readerPaneRef.current?.querySelector<HTMLElement>(
+      readerMode === "edit" ? ".markdown-rich-editor" : ".markdown-preview"
+    );
+    const heading = container?.querySelectorAll<HTMLElement>("h1, h2, h3")[outlineItem.index];
+    heading?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start"
+    });
+  }, [item.kind, readerMode]);
 
   useEffect(() => {
     onDirtyChange(id, hasUnsavedChanges);
@@ -3900,8 +4087,38 @@ function ReaderPane({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPrimary]);
 
+  const readerContextMenuLayer = readerContextMenu && typeof document !== "undefined"
+    ? createPortal(
+      <div
+        ref={readerContextMenuRef}
+        className="reader-context-menu"
+        role="menu"
+        style={{ left: readerContextMenu.x, top: readerContextMenu.y }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <button type="button" role="menuitem" onClick={revealReaderItem}>
+          <FolderSearch aria-hidden="true" />
+          <span>在本地文件管理器中显示</span>
+        </button>
+        <button type="button" role="menuitem" onClick={copyReaderPath}>
+          <Copy aria-hidden="true" />
+          <span>复制文件路径</span>
+        </button>
+        <button type="button" role="menuitem" onClick={() => openReaderItemExternally("tab")}>
+          <ExternalLink aria-hidden="true" />
+          <span>新标签页打开</span>
+        </button>
+        <button type="button" role="menuitem" onClick={() => openReaderItemExternally("system")}>
+          <File aria-hidden="true" />
+          <span>系统默认应用打开</span>
+        </button>
+      </div>,
+      document.body
+    )
+    : null;
+
   return (
-    <section className="reader-pane" data-multi={isMulti ? "true" : undefined}>
+    <section ref={readerPaneRef} className="reader-pane" data-multi={isMulti ? "true" : undefined} onContextMenu={openReaderContextMenu}>
       {isPrimary ? (
         <ReaderControls
           canAddPane={canAddPane}
@@ -3922,6 +4139,9 @@ function ReaderPane({
           onToggleMode={changeReaderMode}
           onToggleOpen={setIsControlsOpen}
         />
+      ) : null}
+      {supportsOutline ? (
+        <ReaderOutline isLoading={isOutlineLoading} items={outlineItems} onSelect={scrollToOutlineItem} />
       ) : null}
       {isMulti ? (
         <header className="reader-pane-header">
@@ -3974,6 +4194,9 @@ function ReaderPane({
           isEditing={readerMode === "edit"}
           source={htmlPreviewSource}
           onChange={updateEditorContent}
+          onOutlineChange={setHtmlOutline}
+          outlineScrollRequest={htmlOutlineScrollRequest}
+          onRequestContextMenu={openReaderContextMenuAt}
         />
       ) : item.kind === "markdown" && readerMode === "edit" && !editorError ? (
         <section className="reader-rich-editor" aria-label={`${item.title} 富文本编辑器`}>
@@ -3984,7 +4207,147 @@ function ReaderPane({
       ) : (
         <ReaderSurface item={item} key={`${item.relativePath}:${item.mtimeMs}`} />
       )}
+      {readerContextMenuLayer}
     </section>
+  );
+}
+
+function ReaderOutline({
+  isLoading,
+  items,
+  onSelect
+}: {
+  isLoading: boolean;
+  items: ReaderOutlineItem[];
+  onSelect: (item: ReaderOutlineItem) => void;
+}) {
+  const id = useId();
+  const prefersReducedMotion = useReducedMotion();
+  const [isOpen, setIsOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const transition: Transition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: isOpen ? 0.24 : 0.12, ease: MOTION_EASE_OUT };
+  const numberedItems = useMemo(() => {
+    let chapter = 0;
+    let section = 0;
+    let subsection = 0;
+
+    return items.map((item) => {
+      if (item.level === 1) {
+        chapter += 1;
+        section = 0;
+        subsection = 0;
+      } else if (item.level === 2) {
+        section += 1;
+        subsection = 0;
+      } else {
+        subsection += 1;
+      }
+
+      const currentChapter = Math.max(chapter, 1);
+      const number = item.level === 1
+        ? String(currentChapter).padStart(2, "0")
+        : item.level === 2
+          ? `${currentChapter}.${section}`
+          : `${currentChapter}.${section}.${subsection}`;
+
+      return { item, number };
+    });
+  }, [items]);
+
+  const openOnHover = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+
+  const closeAfterPointerExit = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setIsOpen(false);
+    }, 80);
+  }, []);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
+  const closeWhenFocusLeaves = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setIsOpen(false);
+  };
+
+  return (
+    <LazyMotion features={domMax}>
+      <div
+        className="reader-outline"
+        data-open={isOpen ? "true" : undefined}
+        onFocusCapture={openOnHover}
+        onBlurCapture={closeWhenFocusLeaves}
+      >
+        <button
+          className="reader-outline-trigger"
+          type="button"
+          aria-controls={id}
+          aria-expanded={isOpen}
+          aria-label="打开目录"
+          title="目录"
+          onClick={openOnHover}
+          onFocus={openOnHover}
+          onMouseEnter={openOnHover}
+          onMouseLeave={closeAfterPointerExit}
+        >
+          <BookOpen aria-hidden="true" />
+        </button>
+        <m.nav
+          id={id}
+          className="reader-outline-panel"
+          aria-hidden={!isOpen}
+          aria-label="文档目录"
+          animate={isOpen ? { opacity: 1, scaleX: 1 } : { opacity: 0, scaleX: 0.12 }}
+          initial={false}
+          style={{ pointerEvents: isOpen ? "auto" : "none", transformOrigin: "left center" }}
+          transition={transition}
+          onMouseEnter={openOnHover}
+          onMouseLeave={closeAfterPointerExit}
+        >
+          <p>目录</p>
+          {isLoading ? (
+            <p className="reader-outline-empty">正在读取目录</p>
+          ) : items.length ? (
+            <div className="reader-outline-list">
+              {numberedItems.map(({ item, number }) => (
+                <button
+                  className="reader-outline-item"
+                  data-level={item.level}
+                  key={`${item.index}-${item.text}`}
+                  type="button"
+                  tabIndex={isOpen ? 0 : -1}
+                  onClick={() => onSelect(item)}
+                >
+                  <span className="reader-outline-index" aria-hidden="true">
+                    {number}
+                  </span>
+                  <span className="reader-outline-label">{item.text}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="reader-outline-empty">未识别到 H1–H3 标题</p>
+          )}
+        </m.nav>
+      </div>
+    </LazyMotion>
   );
 }
 
@@ -4851,6 +5214,16 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 
   const emit = () => parent.postMessage({ type: 'document-gallery-html-change', content: serialize() }, '*');
 
+  const headingNodes = () => Array.from(document.querySelectorAll('h1, h2, h3'));
+  const emitOutline = () => {
+    const items = headingNodes().map((node, index) => ({
+      index,
+      level: Number(node.tagName.slice(1)),
+      text: node.textContent?.replace(/\\s+/g, ' ').trim() || ''
+    })).filter((item) => item.text);
+    parent.postMessage({ type: 'document-gallery-html-outline', items }, '*');
+  };
+
   const setEditing = (enabled) => {
     editing = Boolean(enabled);
     if (!document.body) return;
@@ -4869,15 +5242,44 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
   document.addEventListener('click', (event) => {
     if (editing) event.preventDefault();
   }, true);
+  document.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    parent.postMessage({ type: 'document-gallery-html-context-menu', x: event.clientX, y: event.clientY }, '*');
+  });
   document.addEventListener('input', () => {
-    if (editing) emit();
+    if (editing) {
+      emit();
+      emitOutline();
+    }
   });
   window.addEventListener('message', (event) => {
     if (event.data?.type === 'document-gallery-html-mode') setEditing(event.data.editing);
+    if (event.data?.type === 'document-gallery-html-request-outline') emitOutline();
+    if (event.data?.type === 'document-gallery-html-scroll-to-heading' && Number.isInteger(event.data.index)) {
+      headingNodes()[event.data.index]?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      });
+    }
   });
   parent.postMessage({ type: 'document-gallery-html-ready' }, '*');
+  emitOutline();
+  window.addEventListener('load', emitOutline, { once: true });
 })();
 </script>`;
+
+function stripDocumentGalleryEditingState(source: string) {
+  return source.replace(/<body\b([^>]*)>/i, (_match, attributes: string) => {
+    const hasDocumentGalleryState = /\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/i.test(attributes);
+    let cleanedAttributes = attributes.replace(/\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
+
+    if (hasDocumentGalleryState || /\scontenteditable\s*=\s*(?:"plaintext-only"|'plaintext-only'|plaintext-only)/i.test(cleanedAttributes)) {
+      cleanedAttributes = cleanedAttributes.replace(/\scontenteditable(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
+    }
+
+    return `<body${cleanedAttributes}>`;
+  });
+}
 
 function escapeHtmlAttribute(value: string) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -4897,11 +5299,17 @@ function HtmlRichPreview({
   item,
   isEditing,
   onChange,
+  onOutlineChange,
+  onRequestContextMenu,
+  outlineScrollRequest,
   source
 }: {
   item: LibraryItem;
   isEditing: boolean;
   onChange: (content: string) => void;
+  onOutlineChange: (outline: ReaderOutlineItem[]) => void;
+  onRequestContextMenu: (clientX: number, clientY: number) => void;
+  outlineScrollRequest: ReaderOutlineScrollRequest | null;
   source: string;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -4913,10 +5321,25 @@ function HtmlRichPreview({
       editing: isEditing
     }, "*");
   }, [isEditing]);
+  const requestOutline = useCallback(() => {
+    frameRef.current?.contentWindow?.postMessage({
+      type: "document-gallery-html-request-outline"
+    }, "*");
+  }, []);
 
   useEffect(() => {
     setEditingMode();
   }, [setEditingMode]);
+
+  useEffect(() => {
+    if (!outlineScrollRequest) {
+      return;
+    }
+    frameRef.current?.contentWindow?.postMessage({
+      type: "document-gallery-html-scroll-to-heading",
+      index: outlineScrollRequest.index
+    }, "*");
+  }, [outlineScrollRequest]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -4925,15 +5348,46 @@ function HtmlRichPreview({
       }
       if (event.data.type === "document-gallery-html-ready") {
         setEditingMode();
+        requestOutline();
       }
       if (event.data.type === "document-gallery-html-change" && typeof event.data.content === "string") {
         emitContentChange(event.data.content);
+      }
+      if (event.data.type === "document-gallery-html-outline" && Array.isArray(event.data.items)) {
+        const outline = event.data.items.flatMap((item) => {
+          if (
+            !item
+            || typeof item !== "object"
+            || typeof item.index !== "number"
+            || !Number.isInteger(item.index)
+            || typeof item.text !== "string"
+          ) {
+            return [];
+          }
+          const level = item.level;
+          if (level !== 1 && level !== 2 && level !== 3) {
+            return [];
+          }
+          const text = item.text.trim();
+          return text ? [{ index: item.index, level, text }] : [];
+        });
+        onOutlineChange(outline);
+      }
+      if (
+        event.data.type === "document-gallery-html-context-menu"
+        && typeof event.data.x === "number"
+        && typeof event.data.y === "number"
+      ) {
+        const rect = frameRef.current?.getBoundingClientRect();
+        if (rect) {
+          onRequestContextMenu(rect.left + event.data.x, rect.top + event.data.y);
+        }
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [setEditingMode]);
+  }, [onOutlineChange, onRequestContextMenu, requestOutline, setEditingMode]);
 
   return (
     <iframe
@@ -4943,7 +5397,10 @@ function HtmlRichPreview({
       sandbox="allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts"
       srcDoc={sourceDocument}
       title={item.title}
-      onLoad={setEditingMode}
+      onLoad={() => {
+        setEditingMode();
+        requestOutline();
+      }}
     />
   );
 }
