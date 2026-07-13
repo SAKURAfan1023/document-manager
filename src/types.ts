@@ -3,6 +3,7 @@ export type LibraryKind = "html" | "pdf" | "image" | "markdown" | "text" | "othe
 export type LibraryItem = {
   id: string;
   title: string;
+  sourceName: string;
   relativePath: string;
   url: string;
   extension: string;
@@ -16,6 +17,7 @@ export type LibraryItem = {
 
 export type LibraryNode = {
   name: string;
+  sourceName: string;
   path: string;
   count: number;
   children: LibraryNode[];
@@ -81,6 +83,16 @@ export type LibraryDeleteEntryResponse = {
 export type LibraryRenameEntryResponse = {
   renamed: {
     previousRelativePath: string;
+    relativePath: string;
+    title: string;
+    kind: "file" | "folder";
+  };
+  changed: boolean;
+  version: number;
+};
+
+export type LibraryDisplayNameResponse = {
+  displayName: {
     relativePath: string;
     title: string;
     kind: "file" | "folder";

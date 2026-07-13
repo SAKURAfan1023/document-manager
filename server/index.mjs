@@ -18,6 +18,7 @@ import {
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
+  updateLibraryDisplayName,
   uploadLibraryFiles,
   writeLibraryContent,
   watchLibraryChanges
@@ -221,6 +222,21 @@ export function createApiHandler(options = {}) {
         sendJson(res, getLibraryErrorStatus(error), {
           error: "LIBRARY_RENAME_FAILED",
           message: error instanceof Error ? error.message : "Unknown rename error"
+        });
+      }
+      return true;
+    }
+
+    if (requestUrl.pathname === "/api/library/display-name" && req.method === "POST") {
+      try {
+        const payload = await readJsonBody(req, requestUrl);
+        const result = await updateLibraryDisplayName({ ...payload, libraryDir, metaPath });
+        const status = result.changed ? state.markChanged() : state.getStatus();
+        sendJson(res, 200, { ...result, version: status.version });
+      } catch (error) {
+        sendJson(res, getLibraryErrorStatus(error), {
+          error: "LIBRARY_DISPLAY_NAME_FAILED",
+          message: error instanceof Error ? error.message : "Unknown display-name error"
         });
       }
       return true;

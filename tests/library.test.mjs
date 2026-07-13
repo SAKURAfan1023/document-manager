@@ -14,6 +14,7 @@ import {
   revealLibraryPath,
   resolveLibraryFile,
   scanLibrary,
+  updateLibraryDisplayName,
   uploadLibraryFiles,
   writeLibraryContent
 } from "../server/library.mjs";
@@ -68,6 +69,9 @@ beforeEach(async () => {
   await fs.writeFile(path.join(libraryDir, "misc.bin"), "raw");
   await fs.writeFile(metaPath, JSON.stringify({
     items: {
+      "S1/子主题": {
+        title: "覆盖目录"
+      },
       "S1/子主题/说明.md": {
         title: "覆盖标题",
         tags: ["重点"],
@@ -94,12 +98,19 @@ describe("scanLibrary", () => {
 
     const html = result.items.find((item) => item.kind === "html");
     expect(html?.title).toBe("S1 文档智能解析横评补充计划");
+    expect(html?.sourceName).toBe("s1-followup-plan.html");
     expect(html?.url).toBe("/files/S1/s1-followup-plan.html");
 
     const markdown = result.items.find((item) => item.kind === "markdown");
     expect(markdown?.title).toBe("覆盖标题");
+    expect(markdown?.sourceName).toBe("说明.md");
     expect(markdown?.tags).toEqual(["重点"]);
     expect(markdown?.topicPath).toEqual(["S1", "子主题"]);
+
+    expect(result.tree.children[0].children[0]).toMatchObject({
+      name: "覆盖目录",
+      sourceName: "子主题"
+    });
   });
 
   it("保留空文件夹在目录树中", async () => {
@@ -479,6 +490,56 @@ describe("renameLibraryEntry", () => {
   });
 });
 
+describe("updateLibraryDisplayName", () => {
+  it("只更新 JSON 展示名，不改变本地文件名", async () => {
+    const result = await updateLibraryDisplayName({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题/说明.md",
+      title: "人工标注说明"
+    });
+
+    expect(result).toEqual({
+      displayName: {
+        relativePath: "S1/子主题/说明.md",
+        title: "人工标注说明",
+        kind: "file"
+      },
+      changed: true
+    });
+    await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).resolves.toMatchObject({
+      isFile: expect.any(Function)
+    });
+
+    const scanned = await scanLibrary({ libraryDir, metaPath });
+    expect(scanned.items.find((item) => item.relativePath === "S1/子主题/说明.md")).toMatchObject({
+      title: "人工标注说明",
+      sourceName: "说明.md"
+    });
+  });
+
+  it("支持为文件夹设置展示名", async () => {
+    const result = await updateLibraryDisplayName({
+      libraryDir,
+      metaPath,
+      relativePath: "S1/子主题",
+      title: "待评估材料"
+    });
+
+    expect(result.displayName).toEqual({
+      relativePath: "S1/子主题",
+      title: "待评估材料",
+      kind: "folder"
+    });
+
+    const scanned = await scanLibrary({ libraryDir, metaPath });
+    expect(scanned.tree.children[0].children[0]).toMatchObject({
+      name: "待评估材料",
+      sourceName: "子主题"
+    });
+  });
+});
+
 describe("deleteLibraryEntry", () => {
   it("删除文件并清理 metadata", async () => {
     const result = await deleteLibraryEntry({
@@ -842,6 +903,41 @@ describe("library API", () => {
         },
         changed: true,
         version: 1
+      });
+
+      const status = await fetch(`${server.baseUrl}/api/library/status`);
+      expect(await status.json()).toMatchObject({ changed: true, version: 1 });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("修改展示名后 status 变更，本地文件名保持不变", async () => {
+    const server = await createTestServer(createApiHandler({ libraryDir, metaPath }));
+
+    try {
+      const response = await fetch(`${server.baseUrl}/api/library/display-name`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          relativePath: "S1/子主题/说明.md",
+          title: "人工标注说明"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        displayName: {
+          relativePath: "S1/子主题/说明.md",
+          title: "人工标注说明",
+          kind: "file"
+        },
+        changed: true,
+        version: 1
+      });
+
+      await expect(fs.stat(path.join(libraryDir, "S1", "子主题", "说明.md"))).resolves.toMatchObject({
+        isFile: expect.any(Function)
       });
 
       const status = await fetch(`${server.baseUrl}/api/library/status`);

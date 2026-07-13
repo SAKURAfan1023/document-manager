@@ -100,6 +100,7 @@ a {
   font-size: 13px;
   line-height: 1.45;
   word-break: break-all;
+  white-space: pre-line;
   backdrop-filter: saturate(160%) blur(14px);
   transform: translateX(-50%);
 }

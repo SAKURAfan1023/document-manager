@@ -64,6 +64,7 @@ import type {
   LibraryContentResponse,
   LibraryCreateFolderResponse,
   LibraryDeleteEntryResponse,
+  LibraryDisplayNameResponse,
   LibraryItem,
   LibraryKind,
   LibraryMoveResponse,
@@ -105,12 +106,14 @@ type TreeContextTarget =
     kind: "folder";
     path: string;
     label: string;
+    sourceName: string;
   }
   | {
     kind: "file";
     path: string;
     parentPath: string;
     label: string;
+    sourceName: string;
   }
   | {
     kind: "blank";
@@ -790,6 +793,10 @@ function replaceEntryPath(relativePath: string, previousPath: string, nextPath: 
 
 function entryNameFromRelativePath(relativePath: string) {
   return relativePath.split("/").at(-1) ?? relativePath;
+}
+
+function treeEntryNameTooltip(displayName: string, sourceName: string) {
+  return `展示名：${displayName}\n本地名称：${sourceName}`;
 }
 
 function sortItems(items: LibraryItem[], sortMode: SortMode) {
@@ -1557,6 +1564,25 @@ function useLibrary() {
     return payload as LibraryRenameEntryResponse;
   }, [checkForChanges]);
 
+  const updateDisplayName = useCallback(async (relativePath: string, title: string) => {
+    const response = await fetch("/api/library/display-name", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ relativePath, title })
+    });
+    const payload = await readJsonResponse<Partial<LibraryDisplayNameResponse> & { message?: string }>(
+      response,
+      "展示名接口未就绪，请重启本地服务"
+    );
+
+    if (!response.ok) {
+      throw new Error(payload?.message || `修改展示名失败：${response.status}`);
+    }
+
+    await checkForChanges();
+    return payload as LibraryDisplayNameResponse;
+  }, [checkForChanges]);
+
   const revealPath = useCallback(async (relativePath: string, kind: "file" | "folder") => {
     const response = await fetch("/api/library/reveal", {
       method: "POST",
@@ -1637,11 +1663,11 @@ function useLibrary() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [checkForChanges]);
 
-  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, uploadFiles };
+  return { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, updateDisplayName, uploadFiles };
 }
 
 function App() {
-  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, uploadFiles } = useLibrary();
+  const { library, isLoading, error, createFolder, deleteEntry, refresh, moveEntry, openFile, renameEntry, revealPath, saveContent, updateDisplayName, uploadFiles } = useLibrary();
   const [query, setQuery] = useState("");
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
@@ -1837,6 +1863,7 @@ function App() {
         onEntryMoved={updatePathsAfterEntryMove}
         onMoveEntry={moveEntry}
         onRenameEntry={renameEntry}
+        onUpdateDisplayName={updateDisplayName}
         onUploadFiles={uploadFiles}
       />
     </HoverTooltipProvider>
@@ -1881,6 +1908,7 @@ type LibraryHomeProps = {
   onEntryMoved: (previousPath: string, nextPath: string) => void;
   onMoveEntry: (sourcePath: string, targetPath: string) => Promise<LibraryMoveResponse>;
   onRenameEntry: (relativePath: string, name: string) => Promise<LibraryRenameEntryResponse>;
+  onUpdateDisplayName: (relativePath: string, title: string) => Promise<LibraryDisplayNameResponse>;
   onUploadFiles: (targetPath: string, files: File[]) => Promise<LibraryUploadResponse>;
 };
 
@@ -1917,6 +1945,7 @@ function LibraryHome(props: LibraryHomeProps) {
     onRevealPath,
     onSetDefaultOpenMode,
     onTopicChange,
+    onUpdateDisplayName,
     onUploadFiles
   } = props;
   const readableCount = props.items.filter((item) => item.kind !== "other").length;
@@ -2232,9 +2261,9 @@ function LibraryHome(props: LibraryHomeProps) {
   const estimateTreeContextMenuHeight = useCallback((target: TreeContextTarget) => {
     if (target.kind === "file") {
       const item = props.items.find((candidate) => candidate.relativePath === target.path);
-      return item && isWpsOpenableItem(item) ? 460 : 372;
+      return item && isWpsOpenableItem(item) ? 496 : 408;
     }
-    return target.kind === "folder" && target.path ? 250 : 170;
+    return target.kind === "folder" && target.path ? 286 : 170;
   }, [props.items]);
 
   const openTreeContextMenu = useCallback((target: TreeContextTarget, event: ReactMouseEvent<HTMLElement>) => {
@@ -2353,6 +2382,53 @@ function LibraryHome(props: LibraryHomeProps) {
       });
   }, [props.libraryRoot, treeContextMenu]);
 
+  const updateDisplayNameFromContext = useCallback(() => {
+    const target = treeContextMenu?.target;
+    if (!target || target.kind === "blank" || (target.kind === "folder" && !target.path)) {
+      return;
+    }
+
+    setTreeContextMenu(null);
+    const title = window.prompt(
+      `修改${target.kind === "folder" ? "文件夹" : "文件"}展示名`,
+      target.label
+    )?.trim();
+    if (title === undefined) {
+      return;
+    }
+    if (!title) {
+      setUploadState({
+        status: "error",
+        targetPath: target.path,
+        message: "展示名不能为空"
+      });
+      return;
+    }
+
+    setUploadState({
+      status: "renaming",
+      targetPath: target.path,
+      message: `正在修改${target.kind === "folder" ? "文件夹" : "文件"}展示名 ${target.label}`
+    });
+
+    void (async () => {
+      try {
+        const result = await onUpdateDisplayName(target.path, title);
+        setUploadState({
+          status: "success",
+          targetPath: target.path,
+          message: result.changed ? `展示名已改为 ${result.displayName.title}` : "展示名未变化"
+        });
+      } catch (updateError) {
+        setUploadState({
+          status: "error",
+          targetPath: target.path,
+          message: updateError instanceof Error ? updateError.message : "修改展示名失败"
+        });
+      }
+    })();
+  }, [onUpdateDisplayName, treeContextMenu]);
+
   const renameTargetFromContext = useCallback(() => {
     const target = treeContextMenu?.target;
     if (!target || target.kind === "blank" || (target.kind === "folder" && !target.path)) {
@@ -2361,8 +2437,8 @@ function LibraryHome(props: LibraryHomeProps) {
 
     setTreeContextMenu(null);
     const name = window.prompt(
-      `重命名${target.kind === "folder" ? "文件夹" : "文件"}`,
-      entryNameFromRelativePath(target.path)
+      `重命名本地${target.kind === "folder" ? "文件夹" : "文件"}`,
+      target.sourceName
     )?.trim();
     if (name === undefined) {
       return;
@@ -2379,7 +2455,7 @@ function LibraryHome(props: LibraryHomeProps) {
     setUploadState({
       status: "renaming",
       targetPath: target.path,
-      message: `正在重命名${target.kind === "folder" ? "文件夹" : "文件"} ${target.label}`
+      message: `正在重命名本地${target.kind === "folder" ? "文件夹" : "文件"} ${target.sourceName}`
     });
 
     void (async () => {
@@ -2391,7 +2467,7 @@ function LibraryHome(props: LibraryHomeProps) {
         setUploadState({
           status: "success",
           targetPath: result.renamed.relativePath,
-          message: result.changed ? `已重命名为 ${result.renamed.title}` : "名称未变化"
+          message: result.changed ? `本地名称已改为 ${name}` : "本地名称未变化"
         });
       } catch (renameError) {
         setUploadState({
@@ -2560,7 +2636,7 @@ function LibraryHome(props: LibraryHomeProps) {
   const contextMenuCreateFolderLabel = contextMenuTarget?.kind === "file"
     ? "在所在目录新建文件夹"
     : "新建文件夹";
-  const contextMenuRenameLabel = contextMenuTarget?.kind === "folder" ? "重命名文件夹" : "重命名文件";
+  const contextMenuRenameLabel = contextMenuTarget?.kind === "folder" ? "重命名本地文件夹" : "重命名本地文件";
   const contextMenuDeleteLabel = contextMenuTarget?.kind === "folder" ? "删除文件夹" : "删除文件";
 
   const treeContextMenuLayer = treeContextMenu && typeof document !== "undefined"
@@ -2633,8 +2709,12 @@ function LibraryHome(props: LibraryHomeProps) {
           </button>
           {contextMenuCanRenameDelete ? (
             <>
-              <button type="button" role="menuitem" onClick={renameTargetFromContext}>
+              <button type="button" role="menuitem" onClick={updateDisplayNameFromContext}>
                 <PenLine aria-hidden="true" />
+                <span>修改展示名</span>
+              </button>
+              <button type="button" role="menuitem" onClick={renameTargetFromContext}>
+                <Folder aria-hidden="true" />
                 <span>{contextMenuRenameLabel}</span>
               </button>
               <button type="button" role="menuitem" onClick={deleteTargetFromContext}>
@@ -2863,7 +2943,8 @@ function LibraryHome(props: LibraryHomeProps) {
                     onContextMenu={(event) => openTreeContextMenu({
                       kind: "folder",
                       path: folder.path,
-                      label: folder.name || "根目录"
+                      label: folder.name || "根目录",
+                      sourceName: folder.sourceName
                     }, event)}
                     onOpen={openContentFolder}
                     onReveal={(folderPath) => revealPathInManager(folderPath, "folder")}
@@ -2878,7 +2959,8 @@ function LibraryHome(props: LibraryHomeProps) {
                       kind: "file",
                       path: item.relativePath,
                       parentPath: parentPathFromRelativePath(item.relativePath),
-                      label: item.title
+                      label: item.title,
+                      sourceName: item.sourceName
                     }, event)}
                     onOpen={props.onOpen}
                     onReveal={(relativePath) => revealPathInManager(relativePath, "file")}
@@ -2987,6 +3069,7 @@ function TopicTreeNode({
   const canCollapse = node.children.length > 0 || files.length > 0;
   const isCollapsed = canCollapse && collapsedFolders.has(node.path);
   const nodeLabel = isRoot ? "全部主题" : node.name;
+  const sourceName = isRoot ? "全部主题" : node.sourceName;
 
   return (
     <div className="topic-node">
@@ -3006,13 +3089,14 @@ function TopicTreeNode({
         onDragEnd={onEntryDragEnd}
         onDragStart={(event) => onFolderDragStart(node.path, event)}
         onDrop={(event) => onDropToTopic(node.path, event)}
-        onFocus={() => tooltip.show(nodeLabel)}
+        onFocus={() => tooltip.show(treeEntryNameTooltip(nodeLabel, sourceName))}
         onContextMenu={(event) => onContextMenu({
           kind: "folder",
           path: node.path,
-          label: nodeLabel
+          label: nodeLabel,
+          sourceName
         }, event)}
-        onMouseEnter={() => tooltip.show(nodeLabel)}
+        onMouseEnter={() => tooltip.show(treeEntryNameTooltip(nodeLabel, sourceName))}
         onMouseLeave={tooltip.hide}
       >
         {canCollapse ? (
@@ -3098,14 +3182,15 @@ function TopicTreeNode({
                   onDragOver={(event) => event.stopPropagation()}
                   onDragStart={(event) => onFileDragStart(item, event)}
                   onDrop={(event) => event.stopPropagation()}
-                  onFocus={() => tooltip.show(item.title)}
+                  onFocus={() => tooltip.show(treeEntryNameTooltip(item.title, item.sourceName))}
                   onContextMenu={(event) => onContextMenu({
                     kind: "file",
                     path: item.relativePath,
                     parentPath: parentPathFromRelativePath(item.relativePath),
-                    label: item.title
+                    label: item.title,
+                    sourceName: item.sourceName
                   }, event)}
-                  onMouseEnter={() => tooltip.show(item.title)}
+                  onMouseEnter={() => tooltip.show(treeEntryNameTooltip(item.title, item.sourceName))}
                   onMouseLeave={tooltip.hide}
                 >
                   <FileIcon className="file-type-icon" item={item} />

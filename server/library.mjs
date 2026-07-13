@@ -201,6 +201,12 @@ function applyMeta(item, metaEntry) {
   };
 }
 
+function displayNameFromMeta(name, metaEntry) {
+  return typeof metaEntry?.title === "string" && metaEntry.title.trim()
+    ? metaEntry.title.trim()
+    : name;
+}
+
 function compareItems(a, b) {
   const orderA = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
   const orderB = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
@@ -216,9 +222,10 @@ function compareItems(a, b) {
   return a.title.localeCompare(b.title, "zh-CN");
 }
 
-function buildTree(items, folderPaths = []) {
+function buildTree(items, folderPaths = [], meta = {}) {
   const root = {
     name: "全部文件",
+    sourceName: "全部文件",
     path: "",
     children: [],
     count: items.length
@@ -231,7 +238,8 @@ function buildTree(items, folderPaths = []) {
       const nextPath = currentPath ? `${currentPath}/${part}` : part;
       if (!nodeByPath.has(nextPath)) {
         const node = {
-          name: part,
+          name: displayNameFromMeta(part, meta.items?.[nextPath]),
+          sourceName: part,
           path: nextPath,
           children: [],
           count: 0
@@ -312,6 +320,7 @@ async function walkDirectory({ libraryDir, currentDir, topicPath, meta }) {
     const item = applyMeta({
       id: relativePath,
       title: readableTitle || titleFromFileName(entry.name),
+      sourceName: entry.name,
       relativePath,
       url: encodeFileUrl(relativePath),
       extension: extension.replace(".", ""),
@@ -350,7 +359,7 @@ export async function scanLibrary(options = {}) {
   return {
     generatedAt: new Date().toISOString(),
     root: libraryDir,
-    tree: buildTree(items, folders),
+    tree: buildTree(items, folders, meta),
     items
   };
 }
@@ -757,6 +766,66 @@ export async function moveLibraryEntry(options = {}) {
       kind: isDirectory ? "folder" : "file"
     },
     changed: true
+  };
+}
+
+export async function updateLibraryDisplayName(options = {}) {
+  const libraryDir = path.resolve(options.libraryDir ?? DEFAULT_LIBRARY_DIR);
+  const metaPath = path.resolve(options.metaPath ?? DEFAULT_META_PATH);
+  const sourceEntry = resolveLibraryEntry(options.relativePath ?? "", libraryDir);
+
+  if (!sourceEntry) {
+    throw createLibraryError("展示名路径不在 library 内", 403);
+  }
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.stat(sourceEntry);
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw createLibraryError("展示名目标不存在", 404);
+    }
+    throw error;
+  }
+
+  const isDirectory = sourceStat.isDirectory();
+  if (!sourceStat.isFile() && !isDirectory) {
+    throw createLibraryError("只能修改文件或文件夹展示名", 400);
+  }
+
+  const relativePath = normalizeRelativePath(path.relative(libraryDir, sourceEntry));
+  if (!relativePath && isDirectory) {
+    throw createLibraryError("不能修改 library 根目录展示名", 400);
+  }
+
+  const title = typeof options.title === "string" ? options.title.trim() : "";
+  if (!title) {
+    throw createLibraryError("展示名不能为空", 400);
+  }
+
+  const meta = await readMeta(metaPath);
+  if (!meta.items || typeof meta.items !== "object") {
+    meta.items = {};
+  }
+  const currentEntry = meta.items[relativePath];
+  const currentTitle = typeof currentEntry?.title === "string" ? currentEntry.title.trim() : "";
+  const changed = currentTitle !== title;
+
+  if (changed) {
+    meta.items[relativePath] = {
+      ...(currentEntry && typeof currentEntry === "object" ? currentEntry : {}),
+      title
+    };
+    await writeMeta(metaPath, meta);
+  }
+
+  return {
+    displayName: {
+      relativePath,
+      title,
+      kind: isDirectory ? "folder" : "file"
+    },
+    changed
   };
 }
 
