@@ -235,7 +235,6 @@ const MarkdownRichEditor = lazy(() => import("./MarkdownRichEditor"));
 const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
-const READER_OUTLINE_POSITION_STORAGE_KEY = "document-gallery-reader-outline-position";
 const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-settings";
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
@@ -250,9 +249,10 @@ const READER_PANEL_MOBILE_HEIGHT = 124;
 const READER_PANEL_MAX_WIDTH = 720;
 const READER_PANEL_MARGIN = 24;
 const READER_DRAG_THRESHOLD = 4;
-const READER_OUTLINE_TRIGGER_SIZE = 40;
 const READER_OUTLINE_MARGIN = 8;
+const READER_OUTLINE_MIN_PANEL_HEIGHT = 160;
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const OPERATION_TIP_DURATION_MS = 1_200;
 
 type Point = {
   x: number;
@@ -706,43 +706,12 @@ function saveReaderControlState(position: Point, panelPlacement: ReaderPanelPlac
 function getDefaultReaderOutlinePosition(viewport = getViewportSize()): Point {
   return {
     x: 0,
-    y: clamp(viewport.height * 0.18, 88, 164)
-  };
-}
-
-function clampReaderOutlinePosition(position: Point, viewport = getViewportSize()): Point {
-  return {
-    x: clamp(position.x, 0, Math.max(0, viewport.width - READER_OUTLINE_TRIGGER_SIZE)),
     y: clamp(
-      position.y,
-      READER_OUTLINE_MARGIN,
-      Math.max(READER_OUTLINE_MARGIN, viewport.height - READER_OUTLINE_TRIGGER_SIZE - READER_OUTLINE_MARGIN)
+      viewport.height * 0.18,
+      88,
+      Math.max(READER_OUTLINE_MARGIN, viewport.height - READER_OUTLINE_MIN_PANEL_HEIGHT - READER_OUTLINE_MARGIN)
     )
   };
-}
-
-function readStoredReaderOutlinePosition(): Point | null {
-  try {
-    const raw = window.localStorage.getItem(READER_OUTLINE_POSITION_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as Partial<Point>;
-    if (typeof parsed.x === "number" && typeof parsed.y === "number") {
-      return { x: parsed.x, y: parsed.y };
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function saveReaderOutlinePosition(position: Point) {
-  try {
-    window.localStorage.setItem(READER_OUTLINE_POSITION_STORAGE_KEY, JSON.stringify(position));
-  } catch {
-    // The directory trigger keeps its in-memory position if storage is unavailable.
-  }
 }
 
 function getDefaultReaderControlSettings(): ReaderControlSettings {
@@ -1995,6 +1964,7 @@ type LibraryHomeProps = {
 };
 
 function LibraryHome(props: LibraryHomeProps) {
+  const prefersReducedMotion = useReducedMotion();
   const initialTreeCollapseRef = useRef<TreeCollapseStorage | null>(null);
   if (initialTreeCollapseRef.current === null) {
     initialTreeCollapseRef.current = readTreeCollapseStorage();
@@ -2016,6 +1986,22 @@ function LibraryHome(props: LibraryHomeProps) {
     targetPath: "",
     message: "选择或拖入文件"
   });
+  const operationTipVisible = uploadState.status === "success" || uploadState.status === "error";
+
+  useEffect(() => {
+    if (!operationTipVisible) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setUploadState((current) => current === uploadState
+        ? { status: "idle", targetPath: "", message: "选择或拖入文件" }
+        : current
+      );
+    }, OPERATION_TIP_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [operationTipVisible, uploadState]);
   const {
     onCreateFolder,
     onDeleteEntry,
@@ -2813,6 +2799,27 @@ function LibraryHome(props: LibraryHomeProps) {
 
   return (
     <div className="app-shell" data-sidebar-resizing={isSidebarResizing ? "true" : undefined}>
+      {operationTipVisible ? (
+        <div className="operation-tip-position">
+          <m.div
+            key={`${uploadState.status}:${uploadState.message}`}
+            aria-live="polite"
+            className="operation-tip"
+            data-status={uploadState.status}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+            animate={prefersReducedMotion
+              ? { opacity: 1, y: 0 }
+              : { opacity: [0, 1, 1, 0], y: [8, 0, 0, -16] }
+            }
+            transition={prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: OPERATION_TIP_DURATION_MS / 1_000, ease: MOTION_EASE_OUT, times: [0, 0.12, 0.64, 1] }
+            }
+          >
+            {uploadState.message}
+          </m.div>
+        </div>
+      ) : null}
       <header className="global-nav">
         <div className="global-nav-inner">
           <div className="global-brand">
@@ -2890,7 +2897,7 @@ function LibraryHome(props: LibraryHomeProps) {
           </div>
           <div
             className="upload-status"
-            data-status={uploadState.status}
+            data-status={uploadState.status === "dragging" ? "dragging" : "idle"}
             data-active={dragTarget?.path === "" ? "true" : undefined}
             data-drop-action={dragTarget?.path === "" ? dragTarget.action : undefined}
             onDragOver={(event) => markDragTarget("", event)}
@@ -2898,7 +2905,7 @@ function LibraryHome(props: LibraryHomeProps) {
             onDrop={(event) => dropToTopic("", event)}
           >
             <Upload aria-hidden="true" />
-            <span>{uploadState.message}</span>
+            <span>{uploadState.status === "dragging" ? uploadState.message : "选择或拖入文件"}</span>
           </div>
           {props.tree ? (
             <TopicTree
@@ -4217,7 +4224,10 @@ function ReaderOutline({
   const id = useId();
   const prefersReducedMotion = useReducedMotion();
   const [isOpen, setIsOpen] = useState(false);
+  const [outlineViewport, setOutlineViewport] = useState(() => getViewportSize());
+  const [collapsedItemIndexes, setCollapsedItemIndexes] = useState<Set<number>>(() => new Set());
   const closeTimerRef = useRef<number | null>(null);
+  const outlineRef = useRef<HTMLDivElement>(null);
   const transition: Transition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: isOpen ? 0.24 : 0.12, ease: MOTION_EASE_OUT };
@@ -4248,6 +4258,24 @@ function ReaderOutline({
       return { item, number };
     });
   }, [items]);
+  const outlineEntries = useMemo(() => {
+    const collapsedAncestors: Array<{ level: ReaderOutlineItem["level"] }> = [];
+
+    return numberedItems.flatMap(({ item, number }, index) => {
+      while (collapsedAncestors.length && item.level <= collapsedAncestors[collapsedAncestors.length - 1].level) {
+        collapsedAncestors.pop();
+      }
+
+      const hidden = collapsedAncestors.length > 0;
+      const hasChildren = (numberedItems[index + 1]?.item.level ?? 0) > item.level;
+      const isCollapsed = collapsedItemIndexes.has(item.index);
+      if (isCollapsed) {
+        collapsedAncestors.push({ level: item.level });
+      }
+
+      return hidden ? [] : [{ item, number, hasChildren, isCollapsed }];
+    });
+  }, [collapsedItemIndexes, numberedItems]);
 
   const openOnHover = useCallback(() => {
     if (closeTimerRef.current !== null) {
@@ -4256,6 +4284,21 @@ function ReaderOutline({
     }
     setIsOpen(true);
   }, []);
+
+  const getOutlineViewport = useCallback(() => {
+    const parent = outlineRef.current?.parentElement;
+    return parent ? { width: parent.clientWidth, height: parent.clientHeight } : getViewportSize();
+  }, []);
+
+  useEffect(() => {
+    const syncOutlineViewport = () => {
+      setOutlineViewport(getOutlineViewport());
+    };
+
+    syncOutlineViewport();
+    window.addEventListener("resize", syncOutlineViewport);
+    return () => window.removeEventListener("resize", syncOutlineViewport);
+  }, [getOutlineViewport]);
 
   const closeAfterPointerExit = useCallback(() => {
     if (closeTimerRef.current !== null) {
@@ -4280,13 +4323,36 @@ function ReaderOutline({
     setIsOpen(false);
   };
 
+  const toggleCollapsed = (index: number) => {
+    setCollapsedItemIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const position = getDefaultReaderOutlinePosition(outlineViewport);
+  const panelMaxHeight = Math.min(
+    520,
+    Math.max(READER_OUTLINE_MIN_PANEL_HEIGHT, outlineViewport.height - position.y - READER_OUTLINE_MARGIN)
+  );
+  const opensLeft = position.x + 284 > outlineViewport.width;
+
   return (
     <LazyMotion features={domMax}>
       <div
+        ref={outlineRef}
         className="reader-outline"
         data-open={isOpen ? "true" : undefined}
-        onFocusCapture={openOnHover}
+        data-panel-side={opensLeft ? "left" : "right"}
         onBlurCapture={closeWhenFocusLeaves}
+        onMouseEnter={openOnHover}
+        onMouseLeave={closeAfterPointerExit}
+        style={{ left: position.x, top: position.y }}
       >
         <button
           className="reader-outline-trigger"
@@ -4297,8 +4363,6 @@ function ReaderOutline({
           title="目录"
           onClick={openOnHover}
           onFocus={openOnHover}
-          onMouseEnter={openOnHover}
-          onMouseLeave={closeAfterPointerExit}
         >
           <BookOpen aria-hidden="true" />
         </button>
@@ -4309,30 +4373,50 @@ function ReaderOutline({
           aria-label="文档目录"
           animate={isOpen ? { opacity: 1, scaleX: 1 } : { opacity: 0, scaleX: 0.12 }}
           initial={false}
-          style={{ pointerEvents: isOpen ? "auto" : "none", transformOrigin: "left center" }}
+          style={{
+            maxHeight: panelMaxHeight,
+            pointerEvents: isOpen ? "auto" : "none",
+            transformOrigin: opensLeft ? "right center" : "left center"
+          }}
           transition={transition}
-          onMouseEnter={openOnHover}
-          onMouseLeave={closeAfterPointerExit}
         >
           <p>目录</p>
           {isLoading ? (
             <p className="reader-outline-empty">正在读取目录</p>
           ) : items.length ? (
             <div className="reader-outline-list">
-              {numberedItems.map(({ item, number }) => (
-                <button
-                  className="reader-outline-item"
+              {outlineEntries.map(({ item, number, hasChildren, isCollapsed }) => (
+                <div
+                  className="reader-outline-row"
                   data-level={item.level}
                   key={`${item.index}-${item.text}`}
-                  type="button"
-                  tabIndex={isOpen ? 0 : -1}
-                  onClick={() => onSelect(item)}
                 >
-                  <span className="reader-outline-index" aria-hidden="true">
-                    {number}
-                  </span>
-                  <span className="reader-outline-label">{item.text}</span>
-                </button>
+                  {hasChildren ? (
+                    <button
+                      className="reader-outline-collapse"
+                      data-collapsed={isCollapsed ? "true" : undefined}
+                      type="button"
+                      aria-label={isCollapsed ? "展开下级目录" : "折叠下级目录"}
+                      aria-expanded={!isCollapsed}
+                      tabIndex={isOpen ? 0 : -1}
+                      onClick={() => toggleCollapsed(item.index)}
+                    >
+                      <ChevronDown aria-hidden="true" />
+                    </button>
+                  ) : <span className="reader-outline-branch" aria-hidden="true" />}
+                  <button
+                    className="reader-outline-item"
+                    data-level={item.level}
+                    type="button"
+                    tabIndex={isOpen ? 0 : -1}
+                    onClick={() => onSelect(item)}
+                  >
+                    <span className="reader-outline-index" aria-hidden="true">
+                      {number}
+                    </span>
+                    <span className="reader-outline-label">{item.text}</span>
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
@@ -5178,14 +5262,6 @@ function ReaderSurface({ item }: { item: LibraryItem }) {
 const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 (() => {
   let editing = false;
-  const blockedInputTypes = new Set([
-    'insertParagraph', 'insertLineBreak', 'insertFromDrop', 'formatBackColor',
-    'formatBold', 'formatFontColor', 'formatFontName', 'formatFontSize',
-    'formatIndent', 'formatItalic', 'formatJustifyCenter', 'formatJustifyFull',
-    'formatJustifyLeft', 'formatJustifyRight', 'formatOutdent', 'formatRemove',
-    'formatSetBlockTextDirection', 'formatStrikeThrough', 'formatSubscript',
-    'formatSuperscript', 'formatUnderline'
-  ]);
 
   const doctype = () => {
     const node = document.doctype;
@@ -5195,12 +5271,25 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
     return '<!DOCTYPE ' + node.name + publicId + systemId + '>';
   };
 
+  const editableRoot = (root = document) => root.querySelector('main') || root.querySelector('body');
+
+  const ensureEditorStyle = () => {
+    if (document.getElementById('document-gallery-editor-style')) return;
+    const style = document.createElement('style');
+    style.id = 'document-gallery-editor-style';
+    style.setAttribute('data-document-gallery-editor-style', '');
+    style.textContent = '[data-document-gallery-editing] { outline: 3px dashed rgba(47,111,236,.42); outline-offset: 8px; } [data-document-gallery-editing]:focus { outline-color: rgba(47,111,236,.72); }';
+    document.head.appendChild(style);
+  };
+
   const serialize = () => {
     const root = document.documentElement.cloneNode(true);
-    root.querySelectorAll('[data-document-gallery-editor-bridge], [data-document-gallery-editor-base]').forEach((node) => node.remove());
-    if (root.body) {
-      root.body.removeAttribute('contenteditable');
-      root.body.removeAttribute('data-document-gallery-editing');
+    root.querySelectorAll('[data-document-gallery-editor-bridge], [data-document-gallery-editor-base], [data-document-gallery-editor-style]').forEach((node) => node.remove());
+    const clonedRoot = editableRoot(root);
+    if (clonedRoot) {
+      clonedRoot.removeAttribute('contenteditable');
+      clonedRoot.removeAttribute('spellcheck');
+      clonedRoot.removeAttribute('data-document-gallery-editing');
     }
     return doctype() + '\\n' + root.outerHTML;
   };
@@ -5219,21 +5308,18 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 
   const setEditing = (enabled) => {
     editing = Boolean(enabled);
-    if (!document.body) return;
-    document.body.contentEditable = editing ? 'plaintext-only' : 'false';
-    document.body.toggleAttribute('data-document-gallery-editing', editing);
+    const root = editableRoot();
+    if (!root) return;
+    ensureEditorStyle();
+    root.contentEditable = editing ? 'true' : 'false';
+    root.spellcheck = editing;
+    root.toggleAttribute('data-document-gallery-editing', editing);
   };
 
-  document.addEventListener('beforeinput', (event) => {
-    if (editing && blockedInputTypes.has(event.inputType)) event.preventDefault();
-  });
-  document.addEventListener('paste', (event) => {
-    if (!editing) return;
-    event.preventDefault();
-    document.execCommand('insertText', false, event.clipboardData?.getData('text/plain') || '');
-  });
   document.addEventListener('click', (event) => {
-    if (editing) event.preventDefault();
+    if (!editing) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('a, button, input, textarea, select, label, summary')) event.preventDefault();
   }, true);
   document.addEventListener('contextmenu', (event) => {
     event.preventDefault();
@@ -5262,15 +5348,16 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 </script>`;
 
 function stripDocumentGalleryEditingState(source: string) {
-  return source.replace(/<body\b([^>]*)>/i, (_match, attributes: string) => {
+  return source.replace(/<(body|main)\b([^>]*)>/gi, (_match, tagName: string, attributes: string) => {
     const hasDocumentGalleryState = /\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/i.test(attributes);
     let cleanedAttributes = attributes.replace(/\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
+    cleanedAttributes = cleanedAttributes.replace(/\sspellcheck\s*=\s*(?:"true"|'true'|true)/gi, "");
 
-    if (hasDocumentGalleryState || /\scontenteditable\s*=\s*(?:"plaintext-only"|'plaintext-only'|plaintext-only)/i.test(cleanedAttributes)) {
+    if (hasDocumentGalleryState || /\scontenteditable\s*=\s*(?:"(?:plaintext-only|true)"|'(?:plaintext-only|true)'|plaintext-only|true)/i.test(cleanedAttributes)) {
       cleanedAttributes = cleanedAttributes.replace(/\scontenteditable(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
     }
 
-    return `<body${cleanedAttributes}>`;
+    return `<${tagName}${cleanedAttributes}>`;
   });
 }
 
@@ -5347,22 +5434,27 @@ function HtmlRichPreview({
         emitContentChange(event.data.content);
       }
       if (event.data.type === "document-gallery-html-outline" && Array.isArray(event.data.items)) {
-        const outline = event.data.items.flatMap((item) => {
+        const outline = event.data.items.flatMap((item: unknown): ReaderOutlineItem[] => {
           if (
             !item
             || typeof item !== "object"
-            || typeof item.index !== "number"
-            || !Number.isInteger(item.index)
-            || typeof item.text !== "string"
           ) {
             return [];
           }
-          const level = item.level;
+          const outlineItem = item as Record<string, unknown>;
+          if (
+            typeof outlineItem.index !== "number"
+            || !Number.isInteger(outlineItem.index)
+            || typeof outlineItem.text !== "string"
+          ) {
+            return [];
+          }
+          const level = outlineItem.level;
           if (level !== 1 && level !== 2 && level !== 3) {
             return [];
           }
-          const text = item.text.trim();
-          return text ? [{ index: item.index, level, text }] : [];
+          const text = outlineItem.text.trim();
+          return text ? [{ index: outlineItem.index, level, text }] : [];
         });
         onOutlineChange(outline);
       }
