@@ -297,7 +297,8 @@ const READER_CONTROL_ACTIONS: Array<{
   { id: "multiView", label: "多文件阅览", description: "添加一个并排阅览窗口", icon: Columns2 }
 ];
 
-const DEFAULT_READER_CONTROL_ACTION_ORDER: ReaderControlAction[] = ["back", "previous", "next", "fileSwitcher"];
+const DEFAULT_READER_CONTROL_ACTION_ORDER: ReaderControlAction[] = ["back", "previous", "next", "fileSwitcher", "mode", "save"];
+const LEGACY_DEFAULT_READER_CONTROL_ACTION_ORDER: ReaderControlAction[] = ["back", "previous", "next", "fileSwitcher"];
 
 function isEditorControlAction(action: ReaderControlAction) {
   return action === "mode" || action === "save";
@@ -314,6 +315,11 @@ function synchronizeEditorControlActions(actionOrder: ReaderControlAction[]) {
     }
     return isEditorControlAction(action) ? [] : [action];
   });
+}
+
+function isLegacyDefaultReaderControlActionOrder(actionOrder: ReaderControlAction[]) {
+  return actionOrder.length === LEGACY_DEFAULT_READER_CONTROL_ACTION_ORDER.length
+    && actionOrder.every((action, index) => action === LEGACY_DEFAULT_READER_CONTROL_ACTION_ORDER[index]);
 }
 
 const HoverTooltipContext = createContext<HoverTooltipContextValue>({
@@ -739,7 +745,9 @@ function readReaderControlSettings(): ReaderControlSettings {
       closeOnOutsideClick: typeof parsed.closeOnOutsideClick === "boolean"
         ? parsed.closeOnOutsideClick
         : defaults.closeOnOutsideClick,
-      actionOrder: synchronizeEditorControlActions(actionOrder)
+      actionOrder: isLegacyDefaultReaderControlActionOrder(actionOrder)
+        ? defaults.actionOrder
+        : synchronizeEditorControlActions(actionOrder)
     };
   } catch {
     return defaults;
