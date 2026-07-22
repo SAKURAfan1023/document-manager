@@ -4,3 +4,4 @@ dist
 *.log
 .launcher
 library
+library.meta.json
