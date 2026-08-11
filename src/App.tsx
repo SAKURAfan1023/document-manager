@@ -3876,6 +3876,20 @@ function RecentReaderPanel({
 
   return (
     <aside className="reader-recent" data-open={isOpen ? "true" : undefined} aria-label="最近打开文件">
+      <button
+        className="reader-recent-trigger"
+        type="button"
+        aria-controls={panelId}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? "收起最近打开文件" : "展开最近打开文件"}
+        title={isOpen ? "收起最近打开" : "展开最近打开"}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <History aria-hidden="true" />
+        <span>最近打开</span>
+        <small>{items.length}</small>
+        <ChevronRight aria-hidden="true" />
+      </button>
       <section className="reader-recent-panel" id={panelId} aria-hidden={!isOpen} inert={!isOpen}>
         <header className="reader-recent-header">
           <span className="reader-recent-heading-icon" aria-hidden="true"><History /></span>
@@ -3927,20 +3941,6 @@ function RecentReaderPanel({
           </div>
         )}
       </section>
-      <button
-        className="reader-recent-trigger"
-        type="button"
-        aria-controls={panelId}
-        aria-expanded={isOpen}
-        aria-label={isOpen ? "收起最近打开文件" : "展开最近打开文件"}
-        title={isOpen ? "收起最近打开" : "展开最近打开"}
-        onClick={() => setIsOpen((current) => !current)}
-      >
-        <History aria-hidden="true" />
-        <span>最近打开</span>
-        <small>{items.length}</small>
-        <ChevronRight aria-hidden="true" />
-      </button>
     </aside>
   );
 }
