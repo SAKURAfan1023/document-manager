@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  ChevronRight,
   Columns2,
   Copy,
   Eye,
@@ -21,6 +22,7 @@ import {
   FolderPlus,
   FolderSearch,
   Home,
+  History,
   ListFilter,
   Menu,
   PenLine,
@@ -35,6 +37,10 @@ import {
   X
 } from "lucide-react";
 import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import {
   Component,
   createContext,
@@ -132,6 +138,15 @@ type TreeContextMenuState = {
 type ReaderContextMenuState = {
   x: number;
   y: number;
+};
+
+type RecentReaderEntry = {
+  relativePath: string;
+  openedAt: number;
+};
+
+type RecentReaderItem = RecentReaderEntry & {
+  item: LibraryItem;
 };
 
 type TreeEntryDragPayload = {
@@ -236,6 +251,7 @@ const TREE_COLLAPSE_STORAGE_KEY = "document-gallery-tree-collapse-state";
 const SIDEBAR_WIDTH_STORAGE_KEY = "document-gallery-sidebar-width";
 const READER_CONTROLS_STORAGE_KEY = "document-gallery-reader-controls-position";
 const READER_CONTROL_SETTINGS_STORAGE_KEY = "document-gallery-reader-control-settings";
+const RECENT_READER_ITEMS_STORAGE_KEY = "document-gallery-recent-reader-items";
 const FILE_OPEN_DEFAULTS_STORAGE_KEY = "document-gallery-file-open-defaults";
 const DETAIL_TAGS_STORAGE_KEY = "document-gallery-visible-detail-tags";
 const TREE_CONTEXT_MENU_WIDTH = 232;
@@ -253,6 +269,8 @@ const READER_OUTLINE_MARGIN = 8;
 const READER_OUTLINE_MIN_PANEL_HEIGHT = 160;
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const OPERATION_TIP_DURATION_MS = 1_200;
+const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize];
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
 
 type Point = {
   x: number;
@@ -327,10 +345,6 @@ const HoverTooltipContext = createContext<HoverTooltipContextValue>({
   show: () => {},
   setAnchor: () => {}
 });
-
-type MarkdownBlock =
-  | { type: "h1" | "h2" | "h3" | "p"; text: string }
-  | { type: "ul"; items: string[] };
 
 type ReaderOutlineItem = {
   index: number;
@@ -632,6 +646,57 @@ function writeVisibleDetailTags(visibleTags: Set<DetailTagId>) {
     window.localStorage.setItem(DETAIL_TAGS_STORAGE_KEY, JSON.stringify(Array.from(visibleTags)));
   } catch {
     // Detail cards keep the in-memory selection if storage is unavailable.
+  }
+}
+
+function readRecentReaderEntries(): RecentReaderEntry[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(RECENT_READER_ITEMS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const entries = new Map<string, RecentReaderEntry>();
+    for (const value of parsed) {
+      if (!value || typeof value !== "object") {
+        continue;
+      }
+      const candidate = value as Partial<RecentReaderEntry>;
+      if (
+        typeof candidate.relativePath !== "string"
+        || !candidate.relativePath
+        || typeof candidate.openedAt !== "number"
+        || !Number.isFinite(candidate.openedAt)
+      ) {
+        continue;
+      }
+      const current = entries.get(candidate.relativePath);
+      if (!current || candidate.openedAt > current.openedAt) {
+        entries.set(candidate.relativePath, {
+          relativePath: candidate.relativePath,
+          openedAt: candidate.openedAt
+        });
+      }
+    }
+    return Array.from(entries.values()).sort((first, second) => second.openedAt - first.openedAt);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentReaderEntries(entries: RecentReaderEntry[]) {
+  try {
+    window.localStorage.setItem(RECENT_READER_ITEMS_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // The recent list remains available for the current reader session if storage is unavailable.
   }
 }
 
@@ -1171,47 +1236,6 @@ function hasDirectoryItems(dataTransfer: DataTransfer) {
 
 function visibleFilesFromList(files: FileList | File[]) {
   return Array.from(files).filter((file) => file.name && !file.name.startsWith("."));
-}
-
-function parseMarkdown(source: string): MarkdownBlock[] {
-  const lines = source.split(/\r?\n/);
-  const blocks: MarkdownBlock[] = [];
-  let listItems: string[] = [];
-
-  const flushList = () => {
-    if (listItems.length) {
-      blocks.push({ type: "ul", items: listItems });
-      listItems = [];
-    }
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushList();
-      continue;
-    }
-
-    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
-    if (heading) {
-      flushList();
-      const level = heading[1].length;
-      blocks.push({ type: `h${level}` as "h1" | "h2" | "h3", text: heading[2] });
-      continue;
-    }
-
-    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
-    if (bullet) {
-      listItems.push(bullet[1]);
-      continue;
-    }
-
-    flushList();
-    blocks.push({ type: "p", text: trimmed });
-  }
-
-  flushList();
-  return blocks;
 }
 
 function extractMarkdownOutline(source: string): ReaderOutlineItem[] {
@@ -1868,6 +1892,7 @@ function App() {
       <HoverTooltipProvider>
         <Reader
           item={selectedItem}
+          libraryItems={items}
           libraryRoot={library?.root ?? ""}
           navigationItems={filteredItems.length ? filteredItems : items}
           onBack={returnToLibrary}
@@ -3486,6 +3511,7 @@ function FileCard({
 
 type ReaderProps = {
   item: LibraryItem;
+  libraryItems: LibraryItem[];
   libraryRoot: string;
   navigationItems: LibraryItem[];
   onBack: () => void;
@@ -3513,7 +3539,7 @@ type PendingReaderActionInput =
   | { type: "close"; paneId: string }
   | { type: "exit" };
 
-type ReaderPaneProps = Omit<ReaderProps, "onReplacePrimary"> & {
+type ReaderPaneProps = Omit<ReaderProps, "libraryItems" | "onReplacePrimary"> & {
   canAddPane: boolean;
   canClose: boolean;
   id: string;
@@ -3523,6 +3549,7 @@ type ReaderPaneProps = Omit<ReaderProps, "onReplacePrimary"> & {
   onClose: () => void;
   onDirtyChange: (id: string, dirty: boolean) => void;
   onRegisterSave: (id: string, save: (() => Promise<boolean>) | null) => void;
+  onViewed: (relativePath: string, kind: LibraryKind) => void;
 };
 
 let readerPaneSequence = 0;
@@ -3544,7 +3571,7 @@ function normalizeReaderPaneWeights(panes: ReaderPaneDefinition[]) {
   return panes.map((pane) => ({ ...pane, weight: pane.weight / total }));
 }
 
-function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, onReplacePrimary, onRefresh, onRevealPath, onSave }: ReaderProps) {
+function Reader({ item, libraryItems, libraryRoot, navigationItems, onBack, onOpenExternal, onReplacePrimary, onRefresh, onRevealPath, onSave }: ReaderProps) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const saveHandlersRef = useRef(new Map<string, () => Promise<boolean>>());
   const resizeStateRef = useRef<{
@@ -3557,15 +3584,41 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
   const [dirtyPaneIds, setDirtyPaneIds] = useState<Set<string>>(() => new Set());
   const [pendingAction, setPendingAction] = useState<PendingReaderAction | null>(null);
   const [primaryPathToSync, setPrimaryPathToSync] = useState<string | null>(null);
+  const [recentEntries, setRecentEntries] = useState<RecentReaderEntry[]>(readRecentReaderEntries);
   const viewportWidth = useSyncExternalStore(subscribeViewportWidth, getViewportWidth, () => 0);
   const maxPaneCount = 4;
   const minimumPaneWidth = 280;
   const canAddPane = panes.length < maxPaneCount
     && viewportWidth >= minimumPaneWidth * (panes.length + 1) + panes.length * 8;
+  const paneItems = useMemo(
+    () => new Map(libraryItems.map((candidate) => [candidate.relativePath, candidate])),
+    [libraryItems]
+  );
+  const recentItems = useMemo(() => recentEntries.flatMap((entry): RecentReaderItem[] => {
+    const recentItem = paneItems.get(entry.relativePath);
+    return recentItem && isEditableReaderItem(recentItem) ? [{ ...entry, item: recentItem }] : [];
+  }), [paneItems, recentEntries]);
 
   useEffect(() => {
     setPanes((current) => current[0]?.relativePath === item.relativePath ? current : [createReaderPane(item)]);
   }, [item]);
+
+  useEffect(() => {
+    writeRecentReaderEntries(recentEntries);
+  }, [recentEntries]);
+
+  useEffect(() => {
+    setRecentEntries((current) => {
+      const next = current.filter((entry) => {
+        const recentItem = paneItems.get(entry.relativePath);
+        return recentItem && isEditableReaderItem(recentItem);
+      });
+      if (next.length === current.length) {
+        return current;
+      }
+      return next;
+    });
+  }, [paneItems]);
 
   useEffect(() => {
     if (!primaryPathToSync) {
@@ -3591,6 +3644,19 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
       } else {
         next.delete(id);
       }
+      return next;
+    });
+  }, []);
+
+  const recordViewedItem = useCallback((relativePath: string, kind: LibraryKind) => {
+    if (kind !== "html" && kind !== "markdown") {
+      return;
+    }
+    setRecentEntries((current) => {
+      const next = [
+        { relativePath, openedAt: Date.now() },
+        ...current.filter((entry) => entry.relativePath !== relativePath)
+      ];
       return next;
     });
   }, []);
@@ -3712,7 +3778,12 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
     }
   }, []);
 
-  const paneItems = useMemo(() => new Map(navigationItems.map((candidate) => [candidate.relativePath, candidate])), [navigationItems]);
+  const openRecentItem = useCallback((relativePath: string) => {
+    const primaryPane = panes[0];
+    if (primaryPane) {
+      requestAction({ type: "change", paneId: primaryPane.id, relativePath });
+    }
+  }, [panes, requestAction]);
 
   return (
     <div className="reader-shell reader-workspace" ref={workspaceRef}>
@@ -3745,6 +3816,7 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
                 onRevealPath={onRevealPath}
                 onRegisterSave={registerSave}
                 onSave={onSave}
+                onViewed={recordViewedItem}
               />
             ) : (
               <EmptyReaderPane
@@ -3768,6 +3840,11 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
           </div>
         );
       })}
+      <RecentReaderPanel
+        activePath={item.relativePath}
+        items={recentItems}
+        onOpen={openRecentItem}
+      />
       {pendingAction ? (
         <ReaderUnsavedDialog
           dirtyPaneCount={pendingAction.dirtyPaneIds.length}
@@ -3782,6 +3859,89 @@ function Reader({ item, libraryRoot, navigationItems, onBack, onOpenExternal, on
         />
       ) : null}
     </div>
+  );
+}
+
+function RecentReaderPanel({
+  activePath,
+  items,
+  onOpen
+}: {
+  activePath: string;
+  items: RecentReaderItem[];
+  onOpen: (relativePath: string) => void;
+}) {
+  const panelId = useId();
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <aside className="reader-recent" data-open={isOpen ? "true" : undefined} aria-label="最近打开文件">
+      <section className="reader-recent-panel" id={panelId} aria-hidden={!isOpen} inert={!isOpen}>
+        <header className="reader-recent-header">
+          <span className="reader-recent-heading-icon" aria-hidden="true"><History /></span>
+          <span>
+            <strong>最近打开</strong>
+            <small>HTML 与 Markdown · 新近优先</small>
+          </span>
+        </header>
+        {items.length ? (
+          <ol className="reader-recent-list">
+            {items.map(({ item: recentItem, openedAt }) => {
+              const isActive = recentItem.relativePath === activePath;
+              return (
+                <li key={recentItem.relativePath}>
+                  <button
+                    className="reader-recent-item"
+                    type="button"
+                    data-active={isActive ? "true" : undefined}
+                    title={`打开 ${recentItem.title}`}
+                    onClick={() => {
+                      onOpen(recentItem.relativePath);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <span className="reader-recent-type" data-kind={recentItem.kind} aria-hidden="true">
+                      {recentItem.kind === "html" ? <FileCode2 /> : <FileCode />}
+                    </span>
+                    <span className="reader-recent-copy">
+                      <strong>{recentItem.title}</strong>
+                      <span>{recentItem.relativePath}</span>
+                      <small>
+                        <span>{recentItem.kind === "html" ? "HTML" : "Markdown"}</span>
+                        <time dateTime={new Date(openedAt).toISOString()}>
+                          打开于 {DATE_FORMATTER.format(openedAt)}
+                        </time>
+                      </small>
+                    </span>
+                    {isActive ? <Check className="reader-recent-active" aria-label="当前文件" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <div className="reader-recent-empty">
+            <FileCode aria-hidden="true" />
+            <strong>暂无打开记录</strong>
+            <span>打开 HTML 或 Markdown 后会显示在这里</span>
+          </div>
+        )}
+      </section>
+      <button
+        className="reader-recent-trigger"
+        type="button"
+        aria-controls={panelId}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? "收起最近打开文件" : "展开最近打开文件"}
+        title={isOpen ? "收起最近打开" : "展开最近打开"}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <History aria-hidden="true" />
+        <span>最近打开</span>
+        <small>{items.length}</small>
+        <ChevronRight aria-hidden="true" />
+      </button>
+    </aside>
   );
 }
 
@@ -3822,7 +3982,8 @@ function ReaderPane({
   onRefresh,
   onRevealPath,
   onRegisterSave,
-  onSave
+  onSave,
+  onViewed
 }: ReaderPaneProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const canEdit = isEditableReaderItem(item);
@@ -3844,6 +4005,10 @@ function ReaderPane({
   const currentIndex = navigationItems.findIndex((candidate) => candidate.relativePath === item.relativePath);
   const previous = currentIndex > 0 ? navigationItems[currentIndex - 1] : null;
   const next = currentIndex >= 0 && currentIndex < navigationItems.length - 1 ? navigationItems[currentIndex + 1] : null;
+
+  useEffect(() => {
+    onViewed(item.relativePath, item.kind);
+  }, [item.kind, item.relativePath, onViewed]);
 
   useEffect(() => {
     currentPathRef.current = item.relativePath;
@@ -5516,7 +5681,7 @@ function ResolvedTextPreview({ contentUrl, item }: { contentUrl: string; item: L
   if (item.kind === "markdown") {
     return (
       <article className="text-preview markdown-preview">
-        <MarkdownContent source={content} />
+        <MarkdownContent fileUrl={item.url} source={content} />
       </article>
     );
   }
@@ -5528,25 +5693,33 @@ function ResolvedTextPreview({ contentUrl, item }: { contentUrl: string; item: L
   );
 }
 
-function MarkdownContent({ source }: { source: string }) {
-  const blocks = useMemo(() => parseMarkdown(source), [source]);
+function MarkdownContent({ fileUrl, source }: { fileUrl: string; source: string }) {
+  const urlTransform = useCallback((url: string) => {
+    const safeUrl = defaultUrlTransform(url);
+    if (!safeUrl || safeUrl.startsWith("#") || /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith("//")) {
+      return safeUrl;
+    }
 
-  if (!blocks.length) {
+    try {
+      return new URL(safeUrl, new URL(fileUrl, window.location.origin)).href;
+    } catch {
+      return safeUrl;
+    }
+  }, [fileUrl]);
+
+  if (!source.trim()) {
     return <p> </p>;
   }
 
-  return blocks.map((block) => {
-    if (block.type === "ul") {
-      return (
-        <ul key={`ul-${block.items.join("|")}`}>
-          {block.items.map((item) => <li key={item}>{item}</li>)}
-        </ul>
-      );
-    }
-
-    const Tag = block.type;
-    return <Tag key={`${block.type}-${block.text}`}>{block.text}</Tag>;
-  });
+  return (
+    <ReactMarkdown
+      rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+      remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+      urlTransform={urlTransform}
+    >
+      {source}
+    </ReactMarkdown>
+  );
 }
 
 export default App;
