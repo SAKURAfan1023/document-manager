@@ -1,0 +1,700 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ005",
+  "record_uid": "48991630-1b2b-49fb-9769-9f20d73126eb",
+  "slug": "preserve-markdown-edit-appearance",
+  "title": "保持 Markdown 编辑结构与视觉一致",
+  "status": "completed",
+  "task_index_in_initial_session": 5,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": null,
+  "follows_up": null,
+  "started_at": "2026-08-18T10:45:41+08:00",
+  "updated_at": "2026-08-18T10:47:41+08:00",
+  "first_execution_started_at": "2026-08-18T10:45:57+08:00",
+  "latest_execution_started_at": "2026-08-18T10:45:57+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "6ec96399d2b12303ec630f03e3bdda37538502ed69f3b38a8b09e56a037166ab",
+  "frozen_request_digest": "6ec96399d2b12303ec630f03e3bdda37538502ed69f3b38a8b09e56a037166ab",
+  "request_frozen_at": "2026-08-18T10:45:57+08:00",
+  "ended_at": "2026-08-18T10:47:41+08:00",
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T10:45:41+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T02:45:28.562Z",
+        "usage": {
+          "input_tokens": 14264647,
+          "cached_input_tokens": 13751296,
+          "uncached_input_tokens": 513351,
+          "output_tokens": 59811,
+          "reasoning_output_tokens": 21323,
+          "total_tokens": 14324458
+        },
+        "tool_calls": 134,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T10:45:57+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T02:45:49.780Z",
+        "usage": {
+          "input_tokens": 14482707,
+          "cached_input_tokens": 13965568,
+          "uncached_input_tokens": 517139,
+          "output_tokens": 60684,
+          "reasoning_output_tokens": 21559,
+          "total_tokens": 14543391
+        },
+        "tool_calls": 136,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": "2026-08-18T10:47:41+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T02:47:22.429Z",
+        "usage": {
+          "input_tokens": 15162038,
+          "cached_input_tokens": 14633984,
+          "uncached_input_tokens": 528054,
+          "output_tokens": 64251,
+          "reasoning_output_tokens": 22709,
+          "total_tokens": 15226289
+        },
+        "tool_calls": 142,
+        "rollout_available": true
+      }
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [
+    {
+      "status": "completed",
+      "ended_at": "2026-08-18T10:47:41+08:00",
+      "segment_index": 1,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T02:45:57Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "MarkdownRichEditor 的 contentEditable 复用 markdown-preview 类，编辑器外层宽度、留白及多窗口/窄屏规则与阅读态对齐。",
+              "注册 codeBlockPlugin 与 codeMirrorPlugin，显式支持 Mermaid 并保留其他 fenced language 标记。",
+              "npm run typecheck、npm test（2 个文件、45 项测试）与 git diff --check 通过；未进行浏览器视觉验收。"
+            ],
+            "acceptance_ids": [
+              "AC-1",
+              "AC-2",
+              "AC-3"
+            ],
+            "claimed_at": "2026-08-18T02:47:38Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-18T02:47:41Z",
+            "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+            "target": {
+              "mode": "snapshot",
+              "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+              "paths": {
+                "src/MarkdownRichEditor.tsx": {
+                  "status": " M",
+                  "index": "100644 2f372eb9638c9fcafdcdee44d78a98715f7470e4 0\tsrc/MarkdownRichEditor.tsx",
+                  "kind": "file",
+                  "sha256": "e166c680733ab209c46a46d0ec3525172c04bb56a5301e0242617dc6a8e8a6f7",
+                  "size": 1939
+                },
+                "src/MermaidDiagram.tsx": {
+                  "status": " M",
+                  "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                  "kind": "file",
+                  "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                  "size": 8112
+                },
+                "src/styles.css": {
+                  "status": " M",
+                  "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                  "kind": "file",
+                  "sha256": "9f07510447ef218695db94fb37a2a3da80869a645c4fd6a3dba5b99895f2cdf2",
+                  "size": 60940
+                },
+                "tests/markdown.test.ts": {
+                  "status": " M",
+                  "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                  "kind": "file",
+                  "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                  "size": 1927
+                }
+              }
+            },
+            "target_digest": "3762120ea0541583433e4e2e16b6384d6c581f338bd2d5498dab1ed354f3f9ce",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+                  "paths": {
+                    "src/MarkdownRichEditor.tsx": {
+                      "status": " M",
+                      "index": "100644 2f372eb9638c9fcafdcdee44d78a98715f7470e4 0\tsrc/MarkdownRichEditor.tsx",
+                      "kind": "file",
+                      "sha256": "e166c680733ab209c46a46d0ec3525172c04bb56a5301e0242617dc6a8e8a6f7",
+                      "size": 1939
+                    },
+                    "src/MermaidDiagram.tsx": {
+                      "status": " M",
+                      "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                      "kind": "file",
+                      "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                      "size": 8112
+                    },
+                    "src/styles.css": {
+                      "status": " M",
+                      "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                      "kind": "file",
+                      "sha256": "9f07510447ef218695db94fb37a2a3da80869a645c4fd6a3dba5b99895f2cdf2",
+                      "size": 60940
+                    },
+                    "tests/markdown.test.ts": {
+                      "status": " M",
+                      "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                      "kind": "file",
+                      "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                      "size": 1927
+                    }
+                  }
+                },
+                "target_digest": "3762120ea0541583433e4e2e16b6384d6c581f338bd2d5498dab1ed354f3f9ce",
+                "changed_paths": [
+                  "src/MarkdownRichEditor.tsx",
+                  "src/styles.css"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 2,
+                  "added_lines": 18,
+                  "deleted_lines": 10,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 2,
+                  "added_lines": 18,
+                  "deleted_lines": 10
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1887,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 677,
+                    "stdout_sha256": "c85c38e898bdf537acda412d3e5c38eec5038b6b3209ca9f0cd7ec5704051568",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 273,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.25,
+                  "added_lines": 0.009,
+                  "deleted_lines": 0.1
+                },
+                "warnings": [],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [
+              "src/MarkdownRichEditor.tsx",
+              "src/styles.css"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 2,
+              "added_lines": 18,
+              "deleted_lines": 10,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 2,
+              "added_lines": 18,
+              "deleted_lines": 10
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1887,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 677,
+                "stdout_sha256": "c85c38e898bdf537acda412d3e5c38eec5038b6b3209ca9f0cd7ec5704051568",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 273,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.25,
+              "added_lines": 0.009,
+              "deleted_lines": 0.1
+            },
+            "warnings": [],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "8134490f3d44d7ddbfb7bf45dd69fa21b5ec472e6a7b2f25cfbfb48663c0a3ee"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 2,
+            "added_lines": 18,
+            "deleted_lines": 10,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 3,
+          "work_tokens": 14482,
+          "work_tokens_per_acceptance": 4827.333333333333,
+          "work_tokens_per_verified_line": 517.2142857142857,
+          "seconds_per_acceptance": 34.666666666666664,
+          "context_replay_ratio": 0.9839327220456596,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 2.799,
+          "verification_time_ratio": 0.02691346153846154,
+          "first_verify_pass": true,
+          "attempt_count": 1
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
+  "checkpoint": {
+    "completed": [],
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T02:45:57Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+          "paths": {
+            "src/MermaidDiagram.tsx": {
+              "status": " M",
+              "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+              "kind": "file",
+              "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+              "size": 8112
+            },
+            "src/styles.css": {
+              "status": " M",
+              "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+              "kind": "file",
+              "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+              "size": 61007
+            },
+            "tests/markdown.test.ts": {
+              "status": " M",
+              "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+              "kind": "file",
+              "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+              "size": 1927
+            }
+          }
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T02:45:57Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+      "paths": {
+        "src/MermaidDiagram.tsx": {
+          "status": " M",
+          "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+          "kind": "file",
+          "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+          "size": 8112
+        },
+        "src/styles.css": {
+          "status": " M",
+          "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+          "kind": "file",
+          "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+          "size": 61007
+        },
+        "tests/markdown.test.ts": {
+          "status": " M",
+          "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+          "kind": "file",
+          "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+          "size": 1927
+        }
+      }
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T02:45:57Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": true,
+      "evidence": [
+        "MarkdownRichEditor 的 contentEditable 复用 markdown-preview 类，编辑器外层宽度、留白及多窗口/窄屏规则与阅读态对齐。",
+        "注册 codeBlockPlugin 与 codeMirrorPlugin，显式支持 Mermaid 并保留其他 fenced language 标记。",
+        "npm run typecheck、npm test（2 个文件、45 项测试）与 git diff --check 通过；未进行浏览器视觉验收。"
+      ],
+      "acceptance_ids": [
+        "AC-1",
+        "AC-2",
+        "AC-3"
+      ],
+      "claimed_at": "2026-08-18T02:47:38Z"
+    },
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-18T02:47:41Z",
+      "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+      "target": {
+        "mode": "snapshot",
+        "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+        "paths": {
+          "src/MarkdownRichEditor.tsx": {
+            "status": " M",
+            "index": "100644 2f372eb9638c9fcafdcdee44d78a98715f7470e4 0\tsrc/MarkdownRichEditor.tsx",
+            "kind": "file",
+            "sha256": "e166c680733ab209c46a46d0ec3525172c04bb56a5301e0242617dc6a8e8a6f7",
+            "size": 1939
+          },
+          "src/MermaidDiagram.tsx": {
+            "status": " M",
+            "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+            "kind": "file",
+            "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+            "size": 8112
+          },
+          "src/styles.css": {
+            "status": " M",
+            "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+            "kind": "file",
+            "sha256": "9f07510447ef218695db94fb37a2a3da80869a645c4fd6a3dba5b99895f2cdf2",
+            "size": 60940
+          },
+          "tests/markdown.test.ts": {
+            "status": " M",
+            "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+            "kind": "file",
+            "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+            "size": 1927
+          }
+        }
+      },
+      "target_digest": "3762120ea0541583433e4e2e16b6384d6c581f338bd2d5498dab1ed354f3f9ce",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+          "target": {
+            "mode": "snapshot",
+            "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+            "paths": {
+              "src/MarkdownRichEditor.tsx": {
+                "status": " M",
+                "index": "100644 2f372eb9638c9fcafdcdee44d78a98715f7470e4 0\tsrc/MarkdownRichEditor.tsx",
+                "kind": "file",
+                "sha256": "e166c680733ab209c46a46d0ec3525172c04bb56a5301e0242617dc6a8e8a6f7",
+                "size": 1939
+              },
+              "src/MermaidDiagram.tsx": {
+                "status": " M",
+                "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                "kind": "file",
+                "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                "size": 8112
+              },
+              "src/styles.css": {
+                "status": " M",
+                "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                "kind": "file",
+                "sha256": "9f07510447ef218695db94fb37a2a3da80869a645c4fd6a3dba5b99895f2cdf2",
+                "size": 60940
+              },
+              "tests/markdown.test.ts": {
+                "status": " M",
+                "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                "kind": "file",
+                "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                "size": 1927
+              }
+            }
+          },
+          "target_digest": "3762120ea0541583433e4e2e16b6384d6c581f338bd2d5498dab1ed354f3f9ce",
+          "changed_paths": [
+            "src/MarkdownRichEditor.tsx",
+            "src/styles.css"
+          ],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 2,
+            "added_lines": 18,
+            "deleted_lines": 10,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 2,
+            "added_lines": 18,
+            "deleted_lines": 10
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1887,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 677,
+              "stdout_sha256": "c85c38e898bdf537acda412d3e5c38eec5038b6b3209ca9f0cd7ec5704051568",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 273,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.25,
+            "added_lines": 0.009,
+            "deleted_lines": 0.1
+          },
+          "warnings": [],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [
+        "src/MarkdownRichEditor.tsx",
+        "src/styles.css"
+      ],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 2,
+        "added_lines": 18,
+        "deleted_lines": 10,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 2,
+        "added_lines": 18,
+        "deleted_lines": 10
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1887,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 677,
+          "stdout_sha256": "c85c38e898bdf537acda412d3e5c38eec5038b6b3209ca9f0cd7ec5704051568",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 273,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.25,
+        "added_lines": 0.009,
+        "deleted_lines": 0.1
+      },
+      "warnings": [],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "8134490f3d44d7ddbfb7bf45dd69fa21b5ec472e6a7b2f25cfbfb48663c0a3ee"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 2,
+      "added_lines": 18,
+      "deleted_lines": 10,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 3,
+    "work_tokens": 14482,
+    "work_tokens_per_acceptance": 4827.333333333333,
+    "work_tokens_per_verified_line": 517.2142857142857,
+    "seconds_per_acceptance": 34.666666666666664,
+    "context_replay_ratio": 0.9839327220456596,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 2.799,
+    "verification_time_ratio": 0.02691346153846154,
+    "first_verify_pass": true,
+    "attempt_count": 1
+  },
+  "harness_feedback": []
+}

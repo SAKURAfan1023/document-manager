@@ -2,6 +2,8 @@ import "@mdxeditor/editor/style.css";
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,
+  codeBlockPlugin,
+  codeMirrorPlugin,
   CodeToggle,
   CreateLink,
   headingsPlugin,
@@ -44,8 +46,16 @@ export default function MarkdownRichEditor({
       imagePreviewHandler: async (source) => new URL(source, new URL(fileUrl, window.location.origin)).href
     }),
     tablePlugin(),
+    codeBlockPlugin(),
+    codeMirrorPlugin({
+      codeBlockLanguages: {
+        "": "纯文本",
+        mermaid: "Mermaid"
+      }
+    }),
     markdownShortcutPlugin(),
     toolbarPlugin({
+      toolbarClassName: "markdown-rich-editor-toolbar",
       toolbarContents: () => (
         <>
           <UndoRedo />
@@ -67,7 +77,7 @@ export default function MarkdownRichEditor({
     <MDXEditor
       autoFocus
       className="markdown-rich-editor"
-      contentEditableClassName="markdown-rich-editor-content"
+      contentEditableClassName="markdown-rich-editor-content markdown-preview"
       markdown={markdown}
       plugins={plugins}
       onChange={(nextMarkdown, initialized) => {

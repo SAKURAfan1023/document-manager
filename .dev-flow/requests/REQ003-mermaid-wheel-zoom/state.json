@@ -4,7 +4,7 @@
   "record_uid": "ce292d6c-c1ab-4931-9ecc-3cd838881e45",
   "slug": "mermaid-wheel-zoom",
   "title": "增加 Mermaid 预览滚轮缩放",
-  "status": "in_progress",
+  "status": "completed",
   "task_index_in_initial_session": 3,
   "project": "my.document",
   "targets": [
@@ -28,14 +28,14 @@
     "reason": "在已完成的点击放大预览上增加用户要求的滚轮缩放能力"
   },
   "started_at": "2026-08-18T10:27:33+08:00",
-  "updated_at": "2026-08-18T10:27:51+08:00",
+  "updated_at": "2026-08-18T10:31:12+08:00",
   "first_execution_started_at": "2026-08-18T10:27:51+08:00",
   "latest_execution_started_at": "2026-08-18T10:27:51+08:00",
   "latest_execution_basis": "request",
   "request_digest": "f5a513d52b99e2b722412d65a5296fc73a0a28b852acc2f4cd2d82449bcdddf6",
   "frozen_request_digest": "f5a513d52b99e2b722412d65a5296fc73a0a28b852acc2f4cd2d82449bcdddf6",
   "request_frozen_at": "2026-08-18T10:27:51+08:00",
-  "ended_at": null,
+  "ended_at": "2026-08-18T10:31:12+08:00",
   "phase": "execution",
   "segments": [
     {
@@ -73,24 +73,522 @@
         "rollout_available": true
       },
       "execution_basis": "request",
-      "ended_at": null,
-      "end_snapshot": null
+      "ended_at": "2026-08-18T10:30:46+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T02:30:31.800Z",
+        "usage": {
+          "input_tokens": 10261917,
+          "cached_input_tokens": 9888128,
+          "uncached_input_tokens": 373789,
+          "output_tokens": 43523,
+          "reasoning_output_tokens": 16934,
+          "total_tokens": 10305440
+        },
+        "tool_calls": 95,
+        "rollout_available": true
+      }
+    },
+    {
+      "segment_index": 2,
+      "kind": "resume",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "execution",
+      "started_at": "2026-08-18T10:30:51+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T02:30:46.146Z",
+        "usage": {
+          "input_tokens": 10444900,
+          "cached_input_tokens": 10069888,
+          "uncached_input_tokens": 375012,
+          "output_tokens": 43839,
+          "reasoning_output_tokens": 17082,
+          "total_tokens": 10488739
+        },
+        "tool_calls": 96,
+        "rollout_available": true
+      },
+      "execution_started_at": null,
+      "execution_start_snapshot": null,
+      "execution_basis": null,
+      "ended_at": "2026-08-18T10:31:12+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T02:31:00.201Z",
+        "usage": {
+          "input_tokens": 10996642,
+          "cached_input_tokens": 10619264,
+          "uncached_input_tokens": 377378,
+          "output_tokens": 44217,
+          "reasoning_output_tokens": 17150,
+          "total_tokens": 11040859
+        },
+        "tool_calls": 99,
+        "rollout_available": true
+      }
     }
   ],
-  "current_run_started_segment_index": 1,
-  "finalizations": [],
+  "current_run_started_segment_index": 2,
+  "finalizations": [
+    {
+      "status": "failed",
+      "ended_at": "2026-08-18T10:30:46+08:00",
+      "segment_index": 1,
+      "verified": false,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T02:27:51Z",
+          "claims": {
+            "done": false,
+            "evidence": [
+              "外部提交 07f3f06 在检查期间改变 HEAD；代码与测试均已进入该提交，原验证基线失效"
+            ],
+            "acceptance_ids": [
+              "AC-1",
+              "AC-2"
+            ],
+            "claimed_at": "2026-08-18T10:30:40+08:00"
+          },
+          "facts": {
+            "verified": false,
+            "verified_at": "2026-08-18T02:30:46Z",
+            "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+            "target": {
+              "mode": "snapshot",
+              "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+              "paths": {}
+            },
+            "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+            "targets": [
+              {
+                "verified": false,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+                  "paths": {}
+                },
+                "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+                "changed_paths": [
+                  "src/MermaidDiagram.tsx",
+                  "src/styles.css",
+                  "tests/markdown.test.ts"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 3,
+                  "added_lines": 90,
+                  "deleted_lines": 22,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 3,
+                  "added_lines": 90,
+                  "deleted_lines": 22
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1436,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3826,
+                    "stdout_sha256": "a39d5994b797dba2bda13f535224c56a9c725d88d4b634b1e8243017dc4f98fd",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 273,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.375,
+                  "added_lines": 0.045,
+                  "deleted_lines": 0.22
+                },
+                "warnings": [],
+                "failures": [
+                  "Git HEAD changed after the execution baseline was captured"
+                ],
+                "failure_details": [
+                  {
+                    "id": "6fc02b54310c5132",
+                    "code": "head_changed",
+                    "message": "Git HEAD changed after the execution baseline was captured",
+                    "project": "my.document",
+                    "waivable": false
+                  }
+                ]
+              }
+            ],
+            "changed_paths": [
+              "src/MermaidDiagram.tsx",
+              "src/styles.css",
+              "tests/markdown.test.ts"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 3,
+              "added_lines": 90,
+              "deleted_lines": 22,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 3,
+              "added_lines": 90,
+              "deleted_lines": 22
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1436,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3826,
+                "stdout_sha256": "a39d5994b797dba2bda13f535224c56a9c725d88d4b634b1e8243017dc4f98fd",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 273,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.375,
+              "added_lines": 0.045,
+              "deleted_lines": 0.22
+            },
+            "warnings": [],
+            "failures": [
+              "Git HEAD changed after the execution baseline was captured"
+            ],
+            "failure_details": [
+              {
+                "id": "6fc02b54310c5132",
+                "code": "head_changed",
+                "message": "Git HEAD changed after the execution baseline was captured",
+                "project": "my.document",
+                "waivable": false
+              }
+            ],
+            "completion_claimed": false,
+            "observed_final_status": "failed",
+            "facts_digest": "50533b1f016b20050fae75497428e971e181a1c7ff84111e77cf4c5cacf83463"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 3,
+            "added_lines": 90,
+            "deleted_lines": 22,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 2,
+          "work_tokens": 170749,
+          "work_tokens_per_acceptance": 85374.5,
+          "work_tokens_per_verified_line": 1524.544642857143,
+          "seconds_per_acceptance": 87.5,
+          "context_replay_ratio": 0.9218458255534809,
+          "repair_work_tokens": 1022,
+          "repair_cost_ratio": 0.005985393765117219,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 11.285,
+          "verification_time_ratio": 0.06448571428571429,
+          "first_verify_pass": false,
+          "attempt_count": 2
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Driver observation 通过：typecheck, tests"
+          ],
+          "next_step": "修复验证失败项，重新声明完成并运行 Verify Driver。",
+          "blocker": "Git HEAD changed after the execution baseline was captured",
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    },
+    {
+      "status": "completed",
+      "ended_at": "2026-08-18T10:31:12+08:00",
+      "segment_index": 2,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T02:30:55Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "提交 07f3f06 中预览滚轮以 10% 步长缩放现有 SVG，范围 50%-300%，使用函数式状态更新并显示百分比；npm test 44/44 与 typecheck 通过"
+            ],
+            "acceptance_ids": [
+              "AC-1",
+              "AC-2"
+            ],
+            "claimed_at": "2026-08-18T02:31:07Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-18T02:31:12Z",
+            "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+            "target": {
+              "mode": "snapshot",
+              "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+              "paths": {}
+            },
+            "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+                  "paths": {}
+                },
+                "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+                "changed_paths": [],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 0,
+                  "added_lines": 0,
+                  "deleted_lines": 0,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 0,
+                  "added_lines": 0,
+                  "deleted_lines": 0
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1351,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3683,
+                    "stdout_sha256": "2c708319636a3acbfc97f8e37da83a7c0883bab9fcc00acdc84e218f9ed5d1fc",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 273,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.0,
+                  "added_lines": 0.0,
+                  "deleted_lines": 0.0
+                },
+                "warnings": [],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 0,
+              "added_lines": 0,
+              "deleted_lines": 0,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 0,
+              "added_lines": 0,
+              "deleted_lines": 0
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1351,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3683,
+                "stdout_sha256": "2c708319636a3acbfc97f8e37da83a7c0883bab9fcc00acdc84e218f9ed5d1fc",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 273,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.0,
+              "added_lines": 0.0,
+              "deleted_lines": 0.0
+            },
+            "warnings": [],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "e9e74219f042886d57aa71485281c71a96815dc84e8c73da50d9477a9df0acdc"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 2,
+          "work_tokens": 2744,
+          "work_tokens_per_acceptance": 1372.0,
+          "work_tokens_per_verified_line": null,
+          "seconds_per_acceptance": 10.5,
+          "context_replay_ratio": 0.995711763831646,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 5.124,
+          "verification_time_ratio": 0.244,
+          "first_verify_pass": true,
+          "attempt_count": 1
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认所有声明项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
   "checkpoint": {
     "completed": [],
-    "verified": [],
-    "next_step": "归并当前有效技术方案，并为本 Session 生成原生 Plan。",
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
     "blocker": null,
     "must_check": [
-      "确认项目、分支和工作区仍与记录一致。"
-    ]
+      "确认所有声明项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
   },
   "verification": {
     "required": true,
-    "prepared_at": "2026-08-18T02:27:51Z",
+    "prepared_at": "2026-08-18T02:30:55Z",
     "targets": [
       {
         "project": "my.document",
@@ -99,33 +597,11 @@
         "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
         "target_mode": "snapshot",
         "baseline": {
-          "head": "17b3839fdd4bc2a500dff86cb9ccf00927b6c8c5",
-          "paths": {
-            "src/MermaidDiagram.tsx": {
-              "status": " M",
-              "index": "100644 4686ea030b2006c629949068225ad1210fba8bda 0\tsrc/MermaidDiagram.tsx",
-              "kind": "file",
-              "sha256": "8131d4bdf492fcc215aba532f155d3bcac890542567319ffda6dd93dd9ad2ed2",
-              "size": 4613
-            },
-            "src/styles.css": {
-              "status": " M",
-              "index": "100644 a171ac63846041edd9b37ab48d844321787beee7 0\tsrc/styles.css",
-              "kind": "file",
-              "sha256": "028ac7b41aeaa3124ed02fe02708191db5a7fa5e10cbc6d4d6e9f4699fd57f05",
-              "size": 60300
-            },
-            "tests/markdown.test.ts": {
-              "status": " M",
-              "index": "100644 e8479c7f1cbab0a4d84640f3262728d289067c75 0\ttests/markdown.test.ts",
-              "kind": "file",
-              "sha256": "cfb04c4b6bfec9aad24123b4a69b8ebcb4e68fb8995141fd1888bbb58e55901c",
-              "size": 1186
-            }
-          }
+          "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+          "paths": {}
         },
         "content_baseline": {
-          "captured_at": "2026-08-18T02:27:51Z",
+          "captured_at": "2026-08-18T02:30:55Z",
           "exact": true,
           "reasons": []
         }
@@ -134,41 +610,197 @@
     "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
     "target_mode": "snapshot",
     "baseline": {
-      "head": "17b3839fdd4bc2a500dff86cb9ccf00927b6c8c5",
-      "paths": {
-        "src/MermaidDiagram.tsx": {
-          "status": " M",
-          "index": "100644 4686ea030b2006c629949068225ad1210fba8bda 0\tsrc/MermaidDiagram.tsx",
-          "kind": "file",
-          "sha256": "8131d4bdf492fcc215aba532f155d3bcac890542567319ffda6dd93dd9ad2ed2",
-          "size": 4613
-        },
-        "src/styles.css": {
-          "status": " M",
-          "index": "100644 a171ac63846041edd9b37ab48d844321787beee7 0\tsrc/styles.css",
-          "kind": "file",
-          "sha256": "028ac7b41aeaa3124ed02fe02708191db5a7fa5e10cbc6d4d6e9f4699fd57f05",
-          "size": 60300
-        },
-        "tests/markdown.test.ts": {
-          "status": " M",
-          "index": "100644 e8479c7f1cbab0a4d84640f3262728d289067c75 0\ttests/markdown.test.ts",
-          "kind": "file",
-          "sha256": "cfb04c4b6bfec9aad24123b4a69b8ebcb4e68fb8995141fd1888bbb58e55901c",
-          "size": 1186
-        }
-      }
+      "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+      "paths": {}
     },
     "content_baseline": {
-      "captured_at": "2026-08-18T02:27:51Z",
+      "captured_at": "2026-08-18T02:30:55Z",
       "exact": true,
       "reasons": []
     },
     "claims": {
-      "done": false,
-      "evidence": [],
-      "acceptance_ids": []
+      "done": true,
+      "evidence": [
+        "提交 07f3f06 中预览滚轮以 10% 步长缩放现有 SVG，范围 50%-300%，使用函数式状态更新并显示百分比；npm test 44/44 与 typecheck 通过"
+      ],
+      "acceptance_ids": [
+        "AC-1",
+        "AC-2"
+      ],
+      "claimed_at": "2026-08-18T02:31:07Z"
     },
-    "facts": null
-  }
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-18T02:31:12Z",
+      "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+      "target": {
+        "mode": "snapshot",
+        "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+        "paths": {}
+      },
+      "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+          "target": {
+            "mode": "snapshot",
+            "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+            "paths": {}
+          },
+          "target_digest": "51fb36a99e94f1e23d90846856a309da24d9d30d49b99d36b9d51edaecf12ff2",
+          "changed_paths": [],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1351,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 3683,
+              "stdout_sha256": "2c708319636a3acbfc97f8e37da83a7c0883bab9fcc00acdc84e218f9ed5d1fc",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 273,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.0,
+            "added_lines": 0.0,
+            "deleted_lines": 0.0
+          },
+          "warnings": [],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 0,
+        "added_lines": 0,
+        "deleted_lines": 0,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 0,
+        "added_lines": 0,
+        "deleted_lines": 0
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1351,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 3683,
+          "stdout_sha256": "2c708319636a3acbfc97f8e37da83a7c0883bab9fcc00acdc84e218f9ed5d1fc",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 273,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.0,
+        "added_lines": 0.0,
+        "deleted_lines": 0.0
+      },
+      "warnings": [],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "e9e74219f042886d57aa71485281c71a96815dc84e8c73da50d9477a9df0acdc"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 0,
+      "added_lines": 0,
+      "deleted_lines": 0,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 2,
+    "work_tokens": 2744,
+    "work_tokens_per_acceptance": 1372.0,
+    "work_tokens_per_verified_line": null,
+    "seconds_per_acceptance": 10.5,
+    "context_replay_ratio": 0.995711763831646,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 5.124,
+    "verification_time_ratio": 0.244,
+    "first_verify_pass": true,
+    "attempt_count": 1
+  },
+  "harness_feedback": []
 }

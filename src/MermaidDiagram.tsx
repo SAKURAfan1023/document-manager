@@ -1,7 +1,7 @@
 import { Maximize2, X } from "lucide-react";
 import { isValidElement, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
 type MarkdownPreProps = ComponentPropsWithoutRef<"pre"> & {
   node?: unknown;
@@ -13,6 +13,14 @@ const MERMAID_PREVIEW_MIN_ZOOM = 0.5;
 const MERMAID_PREVIEW_MAX_ZOOM = 3;
 const MERMAID_PREVIEW_ZOOM_STEP = 0.1;
 
+type MermaidPreviewDragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  scrollLeft: number;
+  scrollTop: number;
+};
+
 export function getNextMermaidPreviewZoom(currentZoom: number, deltaY: number) {
   if (deltaY === 0) {
     return currentZoom;
@@ -21,6 +29,18 @@ export function getNextMermaidPreviewZoom(currentZoom: number, deltaY: number) {
   const direction = deltaY < 0 ? 1 : -1;
   const nextZoom = Number((currentZoom + direction * MERMAID_PREVIEW_ZOOM_STEP).toFixed(1));
   return Math.min(MERMAID_PREVIEW_MAX_ZOOM, Math.max(MERMAID_PREVIEW_MIN_ZOOM, nextZoom));
+}
+
+export function getMermaidPreviewScrollPosition(
+  scrollLeft: number,
+  scrollTop: number,
+  deltaX: number,
+  deltaY: number
+) {
+  return {
+    scrollLeft: scrollLeft - deltaX,
+    scrollTop: scrollTop - deltaY
+  };
 }
 
 function loadMermaid() {
@@ -126,8 +146,59 @@ function MermaidDiagram({ source }: { source: string }) {
 
 function MermaidPreviewDialog({ svg, onClose }: { svg: string; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const dragStateRef = useRef<MermaidPreviewDragState | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [zoom, setZoom] = useState(1);
   const zoomPercent = Math.round(zoom * 100);
+
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dialog = dialogRef.current;
+    if (event.button !== 0 || !dialog) {
+      return;
+    }
+
+    event.preventDefault();
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: dialog.scrollLeft,
+      scrollTop: dialog.scrollTop
+    };
+    setIsDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const updateDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    const dialog = dialogRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId || !dialog) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextPosition = getMermaidPreviewScrollPosition(
+      dragState.scrollLeft,
+      dragState.scrollTop,
+      event.clientX - dragState.startX,
+      event.clientY - dragState.startY
+    );
+    dialog.scrollLeft = nextPosition.scrollLeft;
+    dialog.scrollTop = nextPosition.scrollTop;
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -159,7 +230,7 @@ function MermaidPreviewDialog({ svg, onClose }: { svg: string; onClose: () => vo
     >
       <header className="mermaid-preview-toolbar">
         <span className="mermaid-preview-zoom-status" aria-live="polite">
-          {zoomPercent}% · 滚轮缩放
+          {zoomPercent}% · 滚轮缩放 · 拖拽查看
         </span>
         <button
           className="mermaid-preview-close"
@@ -173,6 +244,17 @@ function MermaidPreviewDialog({ svg, onClose }: { svg: string; onClose: () => vo
       </header>
       <div
         className="mermaid-preview-stage"
+        data-dragging={isDragging ? "true" : undefined}
+        onPointerDown={startDrag}
+        onPointerMove={updateDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={(event) => {
+          if (dragStateRef.current?.pointerId === event.pointerId) {
+            dragStateRef.current = null;
+            setIsDragging(false);
+          }
+        }}
         onWheel={(event) => {
           event.preventDefault();
           setZoom((currentZoom) => getNextMermaidPreviewZoom(currentZoom, event.deltaY));

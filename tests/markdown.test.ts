@@ -2,7 +2,21 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import { describe, expect, it } from "vitest";
-import { getMermaidSource, getNextMermaidPreviewZoom, MarkdownPre } from "../src/MermaidDiagram";
+import {
+  getMermaidPreviewScrollPosition,
+  getMermaidSource,
+  getNextMermaidPreviewZoom,
+  MarkdownPre
+} from "../src/MermaidDiagram";
+
+describe("getMermaidPreviewScrollPosition", () => {
+  it("moves the scroll position in the opposite direction of the pointer", () => {
+    expect(getMermaidPreviewScrollPosition(300, 200, 40, -30)).toEqual({
+      scrollLeft: 260,
+      scrollTop: 230
+    });
+  });
+});
 
 describe("getNextMermaidPreviewZoom", () => {
   it("zooms in and out by one step from the latest value", () => {

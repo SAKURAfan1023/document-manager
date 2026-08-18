@@ -1730,12 +1730,16 @@ a {
 }
 
 .reader-pane[data-multi="true"] .reader-rich-editor {
-  padding: 72px 16px 20px;
+  padding: 0 20px 32px;
+}
+
+.reader-pane[data-multi="true"] .markdown-rich-editor-toolbar {
+  margin-bottom: 12px;
 }
 
 .reader-pane[data-multi="true"] .markdown-rich-editor-content {
   min-height: calc(100vh - 132px);
-  padding: 20px;
+  padding: 0;
 }
 
 .reader-pane[data-multi="true"] .text-preview {
@@ -2660,21 +2664,49 @@ a {
   height: 100vh;
   overflow: auto;
   background: var(--canvas);
-  padding: 96px max(20px, calc((100vw - 1040px) / 2)) 32px;
+  padding: 0 max(24px, calc((100vw - 840px) / 2)) 64px;
 }
 
 .markdown-rich-editor {
-  max-width: 920px;
+  max-width: 840px;
   margin: 0 auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-sm);
+  border: 0;
   background: var(--canvas);
   color: var(--ink);
 }
 
+.markdown-rich-editor .markdown-rich-editor-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 80;
+  width: 100%;
+  min-height: 52px;
+  gap: 6px;
+  margin: 12px 0 40px;
+  border: 1px solid oklch(62% 0.12 252 / 32%);
+  border-radius: 14px;
+  background: oklch(99.2% 0.008 252 / 94%);
+  box-shadow:
+    0 14px 34px oklch(23% 0.006 270 / 16%),
+    inset 0 0 0 1px oklch(100% 0 0 / 64%);
+  padding: 8px 10px;
+  backdrop-filter: saturate(180%) blur(18px);
+}
+
+.markdown-rich-editor .markdown-rich-editor-toolbar button {
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+}
+
+.markdown-rich-editor .markdown-rich-editor-toolbar button:hover:not(:disabled) {
+  background: oklch(93.5% 0.025 252);
+  color: var(--blue);
+}
+
 .markdown-rich-editor-content {
   min-height: calc(100vh - 180px);
-  padding: 28px;
+  padding: 0;
   font-family: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 17px;
   line-height: 1.58;
@@ -2978,6 +3010,13 @@ a {
   align-items: center;
   justify-content: flex-start;
   padding: 24px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.mermaid-preview-stage[data-dragging="true"] {
+  cursor: grabbing;
 }
 
 .mermaid-preview-canvas {
@@ -3162,12 +3201,12 @@ a {
   }
 
   .reader-rich-editor {
-    padding: 88px 12px 16px;
+    padding: 0 24px 64px;
   }
 
   .markdown-rich-editor-content {
     min-height: calc(100vh - 132px);
-    padding: 18px;
+    padding: 0;
   }
 }
 

@@ -1,0 +1,639 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ004",
+  "record_uid": "2e6536f1-c15a-4464-bd69-6e57b698a77e",
+  "slug": "mermaid-drag-pan",
+  "title": "增加 Mermaid 预览拖拽平移",
+  "status": "completed",
+  "task_index_in_initial_session": 4,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": null,
+  "follows_up": {
+    "type": "follows_up",
+    "record_id": "REQ003",
+    "record_uid": "ce292d6c-c1ab-4931-9ecc-3cd838881e45",
+    "project": "my.document",
+    "request_path": ".dev-flow/requests/REQ003-mermaid-wheel-zoom/request.md",
+    "title": "增加 Mermaid 预览滚轮缩放",
+    "status_at_link": "completed",
+    "reason": "这是对已完成 Mermaid 放大与滚轮缩放预览的独立交互增强。"
+  },
+  "started_at": "2026-08-18T10:34:11+08:00",
+  "updated_at": "2026-08-18T10:35:46+08:00",
+  "first_execution_started_at": "2026-08-18T10:34:27+08:00",
+  "latest_execution_started_at": "2026-08-18T10:34:27+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "2c235618c338bad3832a478308384164f4ad9bbe2e0c722f18093bebe908e58c",
+  "frozen_request_digest": "2c235618c338bad3832a478308384164f4ad9bbe2e0c722f18093bebe908e58c",
+  "request_frozen_at": "2026-08-18T10:34:27+08:00",
+  "ended_at": "2026-08-18T10:35:46+08:00",
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T10:34:11+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T02:34:00.583Z",
+        "usage": {
+          "input_tokens": 12902686,
+          "cached_input_tokens": 12474496,
+          "uncached_input_tokens": 428190,
+          "output_tokens": 48836,
+          "reasoning_output_tokens": 18546,
+          "total_tokens": 12951522
+        },
+        "tool_calls": 112,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T10:34:27+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T02:34:20.041Z",
+        "usage": {
+          "input_tokens": 13009378,
+          "cached_input_tokens": 12577280,
+          "uncached_input_tokens": 432098,
+          "output_tokens": 49598,
+          "reasoning_output_tokens": 18608,
+          "total_tokens": 13058976
+        },
+        "tool_calls": 115,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": "2026-08-18T10:35:46+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T02:35:38.234Z",
+        "usage": {
+          "input_tokens": 13296140,
+          "cached_input_tokens": 12851584,
+          "uncached_input_tokens": 444556,
+          "output_tokens": 52865,
+          "reasoning_output_tokens": 19372,
+          "total_tokens": 13349005
+        },
+        "tool_calls": 122,
+        "rollout_available": true
+      }
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [
+    {
+      "status": "completed",
+      "ended_at": "2026-08-18T10:35:46+08:00",
+      "segment_index": 1,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T02:34:27Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "npm test -- tests/markdown.test.ts：1 个文件、6 项测试通过，覆盖拖动滚动方向计算。",
+              "npm test：2 个文件、45 项测试全部通过。",
+              "npm run typecheck 与 git diff --check 均通过。"
+            ],
+            "acceptance_ids": [
+              "AC-1",
+              "AC-2"
+            ],
+            "claimed_at": "2026-08-18T02:35:44Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-18T02:35:46Z",
+            "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+            "target": {
+              "mode": "snapshot",
+              "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+              "paths": {
+                "src/MermaidDiagram.tsx": {
+                  "status": " M",
+                  "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                  "kind": "file",
+                  "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                  "size": 8112
+                },
+                "src/styles.css": {
+                  "status": " M",
+                  "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                  "kind": "file",
+                  "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+                  "size": 61007
+                },
+                "tests/markdown.test.ts": {
+                  "status": " M",
+                  "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                  "kind": "file",
+                  "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                  "size": 1927
+                }
+              }
+            },
+            "target_digest": "ca7b8f89c96a7537b933d38ffa6181685044a2426767701a5181ae5448be7ef1",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+                  "paths": {
+                    "src/MermaidDiagram.tsx": {
+                      "status": " M",
+                      "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                      "kind": "file",
+                      "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                      "size": 8112
+                    },
+                    "src/styles.css": {
+                      "status": " M",
+                      "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                      "kind": "file",
+                      "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+                      "size": 61007
+                    },
+                    "tests/markdown.test.ts": {
+                      "status": " M",
+                      "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                      "kind": "file",
+                      "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                      "size": 1927
+                    }
+                  }
+                },
+                "target_digest": "ca7b8f89c96a7537b933d38ffa6181685044a2426767701a5181ae5448be7ef1",
+                "changed_paths": [
+                  "src/MermaidDiagram.tsx",
+                  "src/styles.css",
+                  "tests/markdown.test.ts"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 3,
+                  "added_lines": 106,
+                  "deleted_lines": 3,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 3,
+                  "added_lines": 106,
+                  "deleted_lines": 3
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1448,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 709,
+                    "stdout_sha256": "a382a6cd937b251feee1c1716a99abdc3e677a0cc3a1670b2ce977faa0bca500",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 273,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.375,
+                  "added_lines": 0.053,
+                  "deleted_lines": 0.03
+                },
+                "warnings": [],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [
+              "src/MermaidDiagram.tsx",
+              "src/styles.css",
+              "tests/markdown.test.ts"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 3,
+              "added_lines": 106,
+              "deleted_lines": 3,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 3,
+              "added_lines": 106,
+              "deleted_lines": 3
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1448,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 709,
+                "stdout_sha256": "a382a6cd937b251feee1c1716a99abdc3e677a0cc3a1670b2ce977faa0bca500",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 273,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.375,
+              "added_lines": 0.053,
+              "deleted_lines": 0.03
+            },
+            "warnings": [],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "bc8f67a3a87a431db0ad3263060a31c729b8bb2fff420d4c16ebf3dc5a9f4a7c"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 3,
+            "added_lines": 106,
+            "deleted_lines": 3,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 2,
+          "work_tokens": 15725,
+          "work_tokens_per_acceptance": 7862.5,
+          "work_tokens_per_verified_line": 144.26605504587155,
+          "seconds_per_acceptance": 39.5,
+          "context_replay_ratio": 0.9565563080184962,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 2.394,
+          "verification_time_ratio": 0.030303797468354432,
+          "first_verify_pass": true,
+          "attempt_count": 1
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
+  "checkpoint": {
+    "completed": [],
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T02:34:27Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+          "paths": {}
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T02:34:27Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+      "paths": {}
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T02:34:27Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": true,
+      "evidence": [
+        "npm test -- tests/markdown.test.ts：1 个文件、6 项测试通过，覆盖拖动滚动方向计算。",
+        "npm test：2 个文件、45 项测试全部通过。",
+        "npm run typecheck 与 git diff --check 均通过。"
+      ],
+      "acceptance_ids": [
+        "AC-1",
+        "AC-2"
+      ],
+      "claimed_at": "2026-08-18T02:35:44Z"
+    },
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-18T02:35:46Z",
+      "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+      "target": {
+        "mode": "snapshot",
+        "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+        "paths": {
+          "src/MermaidDiagram.tsx": {
+            "status": " M",
+            "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+            "kind": "file",
+            "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+            "size": 8112
+          },
+          "src/styles.css": {
+            "status": " M",
+            "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+            "kind": "file",
+            "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+            "size": 61007
+          },
+          "tests/markdown.test.ts": {
+            "status": " M",
+            "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+            "kind": "file",
+            "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+            "size": 1927
+          }
+        }
+      },
+      "target_digest": "ca7b8f89c96a7537b933d38ffa6181685044a2426767701a5181ae5448be7ef1",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+          "target": {
+            "mode": "snapshot",
+            "head": "07f3f06eb0e4ba19533b3c91555234c11c26d72c",
+            "paths": {
+              "src/MermaidDiagram.tsx": {
+                "status": " M",
+                "index": "100644 df47bd4de0363a42722e8727d1fe58d7b83a38a4 0\tsrc/MermaidDiagram.tsx",
+                "kind": "file",
+                "sha256": "e8fa15e9e9607ed141de66a737cc35c31a0e2673ef037b65d54750272518b019",
+                "size": 8112
+              },
+              "src/styles.css": {
+                "status": " M",
+                "index": "100644 c9a90bbe9fd30469a486304b41ffe3447cc258b0 0\tsrc/styles.css",
+                "kind": "file",
+                "sha256": "93d32f01e1afa7d106c72cd4d5419fe7a9417fdf43585b7a057fd786319bee48",
+                "size": 61007
+              },
+              "tests/markdown.test.ts": {
+                "status": " M",
+                "index": "100644 51b7a1061954db6ec3060f68021b9141efdfaff7 0\ttests/markdown.test.ts",
+                "kind": "file",
+                "sha256": "4a43da26239c1a055932a08fad0a45a3486dc61e0aa2c5262f219021f3d5d94a",
+                "size": 1927
+              }
+            }
+          },
+          "target_digest": "ca7b8f89c96a7537b933d38ffa6181685044a2426767701a5181ae5448be7ef1",
+          "changed_paths": [
+            "src/MermaidDiagram.tsx",
+            "src/styles.css",
+            "tests/markdown.test.ts"
+          ],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 3,
+            "added_lines": 106,
+            "deleted_lines": 3,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 3,
+            "added_lines": 106,
+            "deleted_lines": 3
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1448,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 709,
+              "stdout_sha256": "a382a6cd937b251feee1c1716a99abdc3e677a0cc3a1670b2ce977faa0bca500",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 273,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.375,
+            "added_lines": 0.053,
+            "deleted_lines": 0.03
+          },
+          "warnings": [],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [
+        "src/MermaidDiagram.tsx",
+        "src/styles.css",
+        "tests/markdown.test.ts"
+      ],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 3,
+        "added_lines": 106,
+        "deleted_lines": 3,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 3,
+        "added_lines": 106,
+        "deleted_lines": 3
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1448,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 709,
+          "stdout_sha256": "a382a6cd937b251feee1c1716a99abdc3e677a0cc3a1670b2ce977faa0bca500",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 273,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.375,
+        "added_lines": 0.053,
+        "deleted_lines": 0.03
+      },
+      "warnings": [],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "bc8f67a3a87a431db0ad3263060a31c729b8bb2fff420d4c16ebf3dc5a9f4a7c"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 3,
+      "added_lines": 106,
+      "deleted_lines": 3,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 2,
+    "work_tokens": 15725,
+    "work_tokens_per_acceptance": 7862.5,
+    "work_tokens_per_verified_line": 144.26605504587155,
+    "seconds_per_acceptance": 39.5,
+    "context_replay_ratio": 0.9565563080184962,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 2.394,
+    "verification_time_ratio": 0.030303797468354432,
+    "first_verify_pass": true,
+    "attempt_count": 1
+  },
+  "harness_feedback": []
+}
