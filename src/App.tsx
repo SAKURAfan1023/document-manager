@@ -84,6 +84,7 @@ import type {
   LibraryUploadResponse,
   SortMode
 } from "./types";
+import { MarkdownPre } from "./MermaidDiagram";
 
 type TopicOption = {
   path: string;
@@ -271,6 +272,7 @@ const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const OPERATION_TIP_DURATION_MS = 1_200;
 const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize];
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
+const MARKDOWN_COMPONENTS = { pre: MarkdownPre };
 
 type Point = {
   x: number;
@@ -5713,6 +5715,7 @@ function MarkdownContent({ fileUrl, source }: { fileUrl: string; source: string 
 
   return (
     <ReactMarkdown
+      components={MARKDOWN_COMPONENTS}
       rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
       remarkPlugins={MARKDOWN_REMARK_PLUGINS}
       urlTransform={urlTransform}

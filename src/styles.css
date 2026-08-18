@@ -2758,6 +2758,7 @@ a {
 .markdown-preview > ol,
 .markdown-preview > blockquote,
 .markdown-preview > pre,
+.markdown-preview > .mermaid-diagram,
 .markdown-preview > table,
 .markdown-preview > hr,
 .markdown-preview > img {
@@ -2848,6 +2849,28 @@ a {
   background: transparent;
   padding: 0;
   font-size: inherit;
+}
+
+.markdown-preview .mermaid-diagram {
+  overflow-x: auto;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  padding: 18px;
+  text-align: center;
+}
+
+.markdown-preview .mermaid-diagram:empty::before {
+  color: var(--ink-soft);
+  content: "图形渲染中…";
+  font-size: 14px;
+}
+
+.markdown-preview .mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
 }
 
 .markdown-preview table {
