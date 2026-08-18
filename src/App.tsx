@@ -84,6 +84,7 @@ import type {
   LibraryUploadResponse,
   SortMode
 } from "./types";
+import { compareItemsByModifiedTime, groupItemsByTopic } from "./librarySorting";
 import { MarkdownPre } from "./MermaidDiagram";
 
 type TopicOption = {
@@ -907,7 +908,7 @@ function treeEntryNameTooltip(displayName: string, sourceName: string) {
 function sortItems(items: LibraryItem[], sortMode: SortMode) {
   const copy = [...items];
   if (sortMode === "recent") {
-    return copy.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return copy.sort(compareItemsByModifiedTime);
   }
   if (sortMode === "title") {
     return copy.sort((a, b) => a.title.localeCompare(b.title, "zh-CN"));
@@ -1754,7 +1755,7 @@ function App() {
   const [activeKind, setActiveKind] = useState<LibraryKind | "all">("all");
   const [activeTopic, setActiveTopic] = useState("");
   const [selectedTreeFilePath, setSelectedTreeFilePath] = useState<string | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("library");
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [openModeDefaults, setOpenModeDefaults] = useState<OpenModeDefaults>(() => readOpenModeDefaults());
   const [visibleDetailTags, setVisibleDetailTags] = useState<Set<DetailTagId>>(() => readVisibleDetailTags());
   const selectedPath = useSyncExternalStore(subscribeSelectedPath, getSelectedPathFromLocation, () => null);
@@ -2055,19 +2056,7 @@ function LibraryHome(props: LibraryHomeProps) {
   const activeTopicName = props.topics.find((topic) => topic.path === props.activeTopic)?.name ?? "全部主题";
   const topicName = props.selectedTreeFile?.title ?? activeTopicName;
   const uploadTargetName = props.activeTopic ? activeTopicName : "根目录";
-  const filesByTopic = useMemo(() => {
-    const next = new Map<string, LibraryItem[]>();
-    for (const item of props.items) {
-      const topicPath = item.topicPath.join("/");
-      const group = next.get(topicPath);
-      if (group) {
-        group.push(item);
-      } else {
-        next.set(topicPath, [item]);
-      }
-    }
-    return next;
-  }, [props.items]);
+  const filesByTopic = useMemo(() => groupItemsByTopic(props.items), [props.items]);
   const allFolderPaths = useMemo(() => props.tree ? collectFolderPaths(props.tree) : [], [props.tree]);
   const contextMenuFile = useMemo(() => {
     if (treeContextMenu?.target.kind !== "file") {
@@ -3603,7 +3592,7 @@ function Reader({ item, libraryItems, libraryRoot, navigationItems, onBack, onOp
 
   useEffect(() => {
     setPanes((current) => current[0]?.relativePath === item.relativePath ? current : [createReaderPane(item)]);
-  }, [item]);
+  }, [item.relativePath]);
 
   useEffect(() => {
     writeRecentReaderEntries(recentEntries);

@@ -6,6 +6,7 @@
       ".dev-flow/config.json",
       "package.json",
       "package-lock.json",
+      "vite.config.ts",
       "src/**",
       "tests/**"
     ],

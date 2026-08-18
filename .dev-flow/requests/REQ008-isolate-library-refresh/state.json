@@ -1,0 +1,175 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ008",
+  "record_uid": "dd556811-e4b6-470e-9108-33e1bf32dfca",
+  "slug": "isolate-library-refresh",
+  "title": "隔离资料库刷新与当前阅读状态",
+  "status": "in_progress",
+  "task_index_in_initial_session": 8,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": "REQ006 已因旧服务端方案失败且已有 REQ007 完成替代；本任务是用户新提出的阅读刷新隔离需求，需独立记录。",
+  "follows_up": null,
+  "started_at": "2026-08-18T11:19:19+08:00",
+  "updated_at": "2026-08-18T11:19:40+08:00",
+  "first_execution_started_at": "2026-08-18T11:19:40+08:00",
+  "latest_execution_started_at": "2026-08-18T11:19:40+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "79c052478453fb3e3bfaefe0e55a5f186a21791ced3ac94d5298928f9e99a044",
+  "frozen_request_digest": "79c052478453fb3e3bfaefe0e55a5f186a21791ced3ac94d5298928f9e99a044",
+  "request_frozen_at": "2026-08-18T11:19:40+08:00",
+  "ended_at": null,
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T11:19:19+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T03:19:05.425Z",
+        "usage": {
+          "input_tokens": 24007498,
+          "cached_input_tokens": 23310592,
+          "uncached_input_tokens": 696906,
+          "output_tokens": 92133,
+          "reasoning_output_tokens": 32166,
+          "total_tokens": 24099631
+        },
+        "tool_calls": 200,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T11:19:40+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T03:19:34.236Z",
+        "usage": {
+          "input_tokens": 24157943,
+          "cached_input_tokens": 23456896,
+          "uncached_input_tokens": 701047,
+          "output_tokens": 93340,
+          "reasoning_output_tokens": 32484,
+          "total_tokens": 24251283
+        },
+        "tool_calls": 203,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": null,
+      "end_snapshot": null
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [],
+  "checkpoint": {
+    "completed": [],
+    "verified": [],
+    "next_step": "归并当前有效技术方案，并为本 Session 生成原生 Plan。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ]
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T03:19:40Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "24ad0c6352e84219d9457af14d302ddb8098820e",
+          "paths": {
+            ".dev-flow/config.json": {
+              "status": " M",
+              "index": "100644 90522f25ec4313a7bb182042e9e3e88654f5e447 0\t.dev-flow/config.json",
+              "kind": "file",
+              "sha256": "a22b0575581e61036c337592ec7f78942febc228a848965070f1af56d6564323",
+              "size": 1070
+            },
+            "src/App.tsx": {
+              "status": " M",
+              "index": "100644 38c7088eab2f071a306f2461ea17b6abe99bcb8a 0\tsrc/App.tsx",
+              "kind": "file",
+              "sha256": "8a6d5f6f57419e3c4abb820ea9e5b3da57ed6a6aae2958aa8e43e173f5947339",
+              "size": 198006
+            },
+            "src/librarySorting.ts": {
+              "status": "??",
+              "kind": "file",
+              "sha256": "3ec379d3a39d9f9008a69d305fd6ad0c76e713605ddc148ae1c253f1a9d789a7",
+              "size": 858
+            },
+            "tests/librarySorting.test.ts": {
+              "status": "??",
+              "kind": "file",
+              "sha256": "b73abd52db3d11d08092ce03a50e836787bf71c1cda4ec26e17685bfe6419b1d",
+              "size": 1641
+            }
+          }
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T03:19:40Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "24ad0c6352e84219d9457af14d302ddb8098820e",
+      "paths": {
+        ".dev-flow/config.json": {
+          "status": " M",
+          "index": "100644 90522f25ec4313a7bb182042e9e3e88654f5e447 0\t.dev-flow/config.json",
+          "kind": "file",
+          "sha256": "a22b0575581e61036c337592ec7f78942febc228a848965070f1af56d6564323",
+          "size": 1070
+        },
+        "src/App.tsx": {
+          "status": " M",
+          "index": "100644 38c7088eab2f071a306f2461ea17b6abe99bcb8a 0\tsrc/App.tsx",
+          "kind": "file",
+          "sha256": "8a6d5f6f57419e3c4abb820ea9e5b3da57ed6a6aae2958aa8e43e173f5947339",
+          "size": 198006
+        },
+        "src/librarySorting.ts": {
+          "status": "??",
+          "kind": "file",
+          "sha256": "3ec379d3a39d9f9008a69d305fd6ad0c76e713605ddc148ae1c253f1a9d789a7",
+          "size": 858
+        },
+        "tests/librarySorting.test.ts": {
+          "status": "??",
+          "kind": "file",
+          "sha256": "b73abd52db3d11d08092ce03a50e836787bf71c1cda4ec26e17685bfe6419b1d",
+          "size": 1641
+        }
+      }
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T03:19:40Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": false,
+      "evidence": [],
+      "acceptance_ids": []
+    },
+    "facts": null
+  }
+}
