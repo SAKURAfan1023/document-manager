@@ -2,7 +2,19 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import { describe, expect, it } from "vitest";
-import { getMermaidSource, MarkdownPre } from "../src/MermaidDiagram";
+import { getMermaidSource, getNextMermaidPreviewZoom, MarkdownPre } from "../src/MermaidDiagram";
+
+describe("getNextMermaidPreviewZoom", () => {
+  it("zooms in and out by one step from the latest value", () => {
+    expect(getNextMermaidPreviewZoom(1, -1)).toBe(1.1);
+    expect(getNextMermaidPreviewZoom(1.1, 1)).toBe(1);
+  });
+
+  it("clamps zoom between 50% and 300%", () => {
+    expect(getNextMermaidPreviewZoom(3, -1)).toBe(3);
+    expect(getNextMermaidPreviewZoom(0.5, 1)).toBe(0.5);
+  });
+});
 
 describe("getMermaidSource", () => {
   it("extracts source from a Mermaid fenced code block", () => {
@@ -22,7 +34,10 @@ describe("getMermaidSource", () => {
       "```mermaid\nflowchart LR\nA --> B\n```"
     );
 
-    expect(renderToStaticMarkup(markdown)).toContain("class=\"mermaid-diagram\"");
+    const markup = renderToStaticMarkup(markdown);
+
+    expect(markup).toContain("class=\"mermaid-diagram\"");
+    expect(markup).toContain("aria-haspopup=\"dialog\"");
   });
 
   it("keeps non-Mermaid code blocks on the default path", () => {

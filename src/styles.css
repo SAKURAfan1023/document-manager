@@ -2852,15 +2852,28 @@ a {
 }
 
 .markdown-preview .mermaid-diagram {
+  position: relative;
+  display: block;
+  width: 100%;
   overflow-x: auto;
   border: 1px solid var(--hairline-soft);
   border-radius: var(--radius-sm);
   background: var(--canvas);
+  color: inherit;
   padding: 18px;
+  cursor: zoom-in;
   text-align: center;
 }
 
-.markdown-preview .mermaid-diagram:empty::before {
+.markdown-preview .mermaid-diagram[disabled] {
+  cursor: wait;
+}
+
+.markdown-preview .mermaid-diagram-canvas {
+  display: block;
+}
+
+.markdown-preview .mermaid-diagram-canvas:empty::before {
   color: var(--ink-soft);
   content: "图形渲染中…";
   font-size: 14px;
@@ -2869,6 +2882,115 @@ a {
 .markdown-preview .mermaid-diagram svg {
   display: block;
   max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.mermaid-diagram-hint {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--reader-bar);
+  color: var(--ink-soft);
+  padding: 7px 10px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+.mermaid-diagram-hint svg,
+.mermaid-preview-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mermaid-diagram:hover .mermaid-diagram-hint,
+.mermaid-diagram:focus-visible .mermaid-diagram-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mermaid-preview-dialog {
+  width: min(1600px, calc(100vw - 48px));
+  height: min(90vh, 1100px);
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--canvas);
+  color: var(--ink);
+  padding: 24px;
+  overscroll-behavior: contain;
+}
+
+.mermaid-preview-dialog::backdrop {
+  background: oklch(8% 0.004 270 / 56%);
+  backdrop-filter: blur(8px);
+}
+
+.mermaid-preview-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.mermaid-preview-zoom-status {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--reader-bar);
+  color: var(--ink-soft);
+  padding: 7px 10px;
+  font-size: 12px;
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+.mermaid-preview-close {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: var(--reader-bar);
+  color: var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+.mermaid-preview-stage {
+  display: flex;
+  min-width: min(1200px, calc(100vw - 96px));
+  min-height: calc(100% - 40px);
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px;
+}
+
+.mermaid-preview-canvas {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: auto;
+}
+
+.mermaid-preview-canvas svg {
+  display: block;
+  width: 100%;
+  max-width: none !important;
   height: auto;
   margin: 0 auto;
 }

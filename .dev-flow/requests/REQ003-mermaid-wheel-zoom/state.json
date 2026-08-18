@@ -1,0 +1,174 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ003",
+  "record_uid": "ce292d6c-c1ab-4931-9ecc-3cd838881e45",
+  "slug": "mermaid-wheel-zoom",
+  "title": "增加 Mermaid 预览滚轮缩放",
+  "status": "in_progress",
+  "task_index_in_initial_session": 3,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": null,
+  "follows_up": {
+    "type": "follows_up",
+    "record_id": "REQ002",
+    "record_uid": "a07b15cf-4861-4420-b0c9-7715357b3816",
+    "project": "my.document",
+    "request_path": ".dev-flow/requests/REQ002-mermaid-zoom-preview/request.md",
+    "title": "增加 Mermaid 图形放大预览",
+    "status_at_link": "completed",
+    "reason": "在已完成的点击放大预览上增加用户要求的滚轮缩放能力"
+  },
+  "started_at": "2026-08-18T10:27:33+08:00",
+  "updated_at": "2026-08-18T10:27:51+08:00",
+  "first_execution_started_at": "2026-08-18T10:27:51+08:00",
+  "latest_execution_started_at": "2026-08-18T10:27:51+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "f5a513d52b99e2b722412d65a5296fc73a0a28b852acc2f4cd2d82449bcdddf6",
+  "frozen_request_digest": "f5a513d52b99e2b722412d65a5296fc73a0a28b852acc2f4cd2d82449bcdddf6",
+  "request_frozen_at": "2026-08-18T10:27:51+08:00",
+  "ended_at": null,
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T10:27:33+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T02:27:22.698Z",
+        "usage": {
+          "input_tokens": 7631710,
+          "cached_input_tokens": 7425664,
+          "uncached_input_tokens": 206046,
+          "output_tokens": 37866,
+          "reasoning_output_tokens": 15835,
+          "total_tokens": 7669576
+        },
+        "tool_calls": 80,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T10:27:51+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T02:27:46.761Z",
+        "usage": {
+          "input_tokens": 8139983,
+          "cached_input_tokens": 7932032,
+          "uncached_input_tokens": 207951,
+          "output_tokens": 38612,
+          "reasoning_output_tokens": 15911,
+          "total_tokens": 8178595
+        },
+        "tool_calls": 83,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": null,
+      "end_snapshot": null
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [],
+  "checkpoint": {
+    "completed": [],
+    "verified": [],
+    "next_step": "归并当前有效技术方案，并为本 Session 生成原生 Plan。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ]
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T02:27:51Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "17b3839fdd4bc2a500dff86cb9ccf00927b6c8c5",
+          "paths": {
+            "src/MermaidDiagram.tsx": {
+              "status": " M",
+              "index": "100644 4686ea030b2006c629949068225ad1210fba8bda 0\tsrc/MermaidDiagram.tsx",
+              "kind": "file",
+              "sha256": "8131d4bdf492fcc215aba532f155d3bcac890542567319ffda6dd93dd9ad2ed2",
+              "size": 4613
+            },
+            "src/styles.css": {
+              "status": " M",
+              "index": "100644 a171ac63846041edd9b37ab48d844321787beee7 0\tsrc/styles.css",
+              "kind": "file",
+              "sha256": "028ac7b41aeaa3124ed02fe02708191db5a7fa5e10cbc6d4d6e9f4699fd57f05",
+              "size": 60300
+            },
+            "tests/markdown.test.ts": {
+              "status": " M",
+              "index": "100644 e8479c7f1cbab0a4d84640f3262728d289067c75 0\ttests/markdown.test.ts",
+              "kind": "file",
+              "sha256": "cfb04c4b6bfec9aad24123b4a69b8ebcb4e68fb8995141fd1888bbb58e55901c",
+              "size": 1186
+            }
+          }
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T02:27:51Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "29aeb12d998e97af162fbcf64bd34fe353da0218ac171b037fda15b2b26c9943",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "17b3839fdd4bc2a500dff86cb9ccf00927b6c8c5",
+      "paths": {
+        "src/MermaidDiagram.tsx": {
+          "status": " M",
+          "index": "100644 4686ea030b2006c629949068225ad1210fba8bda 0\tsrc/MermaidDiagram.tsx",
+          "kind": "file",
+          "sha256": "8131d4bdf492fcc215aba532f155d3bcac890542567319ffda6dd93dd9ad2ed2",
+          "size": 4613
+        },
+        "src/styles.css": {
+          "status": " M",
+          "index": "100644 a171ac63846041edd9b37ab48d844321787beee7 0\tsrc/styles.css",
+          "kind": "file",
+          "sha256": "028ac7b41aeaa3124ed02fe02708191db5a7fa5e10cbc6d4d6e9f4699fd57f05",
+          "size": 60300
+        },
+        "tests/markdown.test.ts": {
+          "status": " M",
+          "index": "100644 e8479c7f1cbab0a4d84640f3262728d289067c75 0\ttests/markdown.test.ts",
+          "kind": "file",
+          "sha256": "cfb04c4b6bfec9aad24123b4a69b8ebcb4e68fb8995141fd1888bbb58e55901c",
+          "size": 1186
+        }
+      }
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T02:27:51Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": false,
+      "evidence": [],
+      "acceptance_ids": []
+    },
+    "facts": null
+  }
+}
