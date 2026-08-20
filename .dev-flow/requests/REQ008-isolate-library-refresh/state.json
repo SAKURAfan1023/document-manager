@@ -4,7 +4,7 @@
   "record_uid": "dd556811-e4b6-470e-9108-33e1bf32dfca",
   "slug": "isolate-library-refresh",
   "title": "隔离资料库刷新与当前阅读状态",
-  "status": "in_progress",
+  "status": "partial",
   "task_index_in_initial_session": 8,
   "project": "my.document",
   "targets": [
@@ -19,14 +19,14 @@
   "separate_task_reason": "REQ006 已因旧服务端方案失败且已有 REQ007 完成替代；本任务是用户新提出的阅读刷新隔离需求，需独立记录。",
   "follows_up": null,
   "started_at": "2026-08-18T11:19:19+08:00",
-  "updated_at": "2026-08-18T11:19:40+08:00",
+  "updated_at": "2026-08-18T11:21:38+08:00",
   "first_execution_started_at": "2026-08-18T11:19:40+08:00",
   "latest_execution_started_at": "2026-08-18T11:19:40+08:00",
   "latest_execution_basis": "request",
   "request_digest": "79c052478453fb3e3bfaefe0e55a5f186a21791ced3ac94d5298928f9e99a044",
   "frozen_request_digest": "79c052478453fb3e3bfaefe0e55a5f186a21791ced3ac94d5298928f9e99a044",
   "request_frozen_at": "2026-08-18T11:19:40+08:00",
-  "ended_at": null,
+  "ended_at": "2026-08-18T11:21:38+08:00",
   "phase": "execution",
   "segments": [
     {
@@ -64,20 +64,283 @@
         "rollout_available": true
       },
       "execution_basis": "request",
-      "ended_at": null,
-      "end_snapshot": null
+      "ended_at": "2026-08-18T11:21:38+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T03:21:25.646Z",
+        "usage": {
+          "input_tokens": 24902630,
+          "cached_input_tokens": 24180992,
+          "uncached_input_tokens": 721638,
+          "output_tokens": 97383,
+          "reasoning_output_tokens": 33409,
+          "total_tokens": 25000013
+        },
+        "tool_calls": 216,
+        "rollout_available": true
+      }
     }
   ],
   "current_run_started_segment_index": 1,
-  "finalizations": [],
+  "finalizations": [
+    {
+      "status": "partial",
+      "ended_at": "2026-08-18T11:21:38+08:00",
+      "segment_index": 1,
+      "verified": false,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T03:19:40Z",
+          "claims": {
+            "done": false,
+            "evidence": [
+              "实现与测试已进入 HEAD 6b48baba；npm test 48/48、typecheck、diff check 均通过。",
+              "执行期间外部流程改变 Git HEAD，原冻结基线不可继续用于完整验证。"
+            ],
+            "acceptance_ids": [
+              "AC-1"
+            ],
+            "claimed_at": "2026-08-18T11:21:32+08:00"
+          },
+          "facts": {
+            "verified": false,
+            "verified_at": "2026-08-18T03:21:38Z",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "target": {
+              "mode": "snapshot",
+              "head": "6b48baba43d14176466843c4c407fb66910b1350",
+              "paths": {}
+            },
+            "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+            "targets": [
+              {
+                "verified": false,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "6b48baba43d14176466843c4c407fb66910b1350",
+                  "paths": {}
+                },
+                "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+                "changed_paths": [
+                  ".dev-flow/config.json",
+                  "src/App.tsx",
+                  "src/librarySorting.ts",
+                  "tests/librarySorting.test.ts"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 4,
+                  "added_lines": 1,
+                  "deleted_lines": 1,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 4,
+                  "added_lines": 1,
+                  "deleted_lines": 1
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1579,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3894,
+                    "stdout_sha256": "297807930c246ea672a1ba220131d49d53548538f19669a1547b4254b9fd0ea6",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 274,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.5,
+                  "added_lines": 0.0005,
+                  "deleted_lines": 0.01
+                },
+                "warnings": [],
+                "failures": [
+                  "Git HEAD changed after the execution baseline was captured"
+                ],
+                "failure_details": [
+                  {
+                    "id": "6fc02b54310c5132",
+                    "code": "head_changed",
+                    "message": "Git HEAD changed after the execution baseline was captured",
+                    "project": "my.document",
+                    "waivable": false
+                  }
+                ]
+              }
+            ],
+            "changed_paths": [
+              ".dev-flow/config.json",
+              "src/App.tsx",
+              "src/librarySorting.ts",
+              "tests/librarySorting.test.ts"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 4,
+              "added_lines": 1,
+              "deleted_lines": 1,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 4,
+              "added_lines": 1,
+              "deleted_lines": 1
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1579,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3894,
+                "stdout_sha256": "297807930c246ea672a1ba220131d49d53548538f19669a1547b4254b9fd0ea6",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 274,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.5,
+              "added_lines": 0.0005,
+              "deleted_lines": 0.01
+            },
+            "warnings": [],
+            "failures": [
+              "Git HEAD changed after the execution baseline was captured"
+            ],
+            "failure_details": [
+              {
+                "id": "6fc02b54310c5132",
+                "code": "head_changed",
+                "message": "Git HEAD changed after the execution baseline was captured",
+                "project": "my.document",
+                "waivable": false
+              }
+            ],
+            "completion_claimed": false,
+            "observed_final_status": "partial",
+            "facts_digest": "93bb9829209051ca6150e069c1e6ef76c93c5b61a802f5c6abfd129683900811"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 4,
+            "added_lines": 1,
+            "deleted_lines": 1,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 1,
+          "work_tokens": 24634,
+          "work_tokens_per_acceptance": 24634.0,
+          "work_tokens_per_verified_line": 12317.0,
+          "seconds_per_acceptance": 118.0,
+          "context_replay_ratio": 0.9723494568859131,
+          "repair_work_tokens": 13090,
+          "repair_cost_ratio": 0.5313793943330356,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 8.694,
+          "verification_time_ratio": 0.07367796610169491,
+          "first_verify_pass": false,
+          "attempt_count": 2
+        },
+        "harness_feedback": [
+          {
+            "type": "high-repair-cost",
+            "evidence": "首次验证后的修复成本占 53%",
+            "recommendation": "补足需求边界、真实调用链或验收输入，减少首次实现后的返工",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "repair_tokens": 13090
+          }
+        ],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Driver observation 通过：typecheck, tests"
+          ],
+          "next_step": "归并当前有效技术方案，并为本 Session 生成原生 Plan。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
   "checkpoint": {
     "completed": [],
-    "verified": [],
+    "verified": [
+      "Driver observation 通过：typecheck, tests"
+    ],
     "next_step": "归并当前有效技术方案，并为本 Session 生成原生 Plan。",
     "blocker": null,
     "must_check": [
       "确认项目、分支和工作区仍与记录一致。"
-    ]
+    ],
+    "blocker_kind": null
   },
   "verification": {
     "required": true,
@@ -167,9 +430,227 @@
     },
     "claims": {
       "done": false,
-      "evidence": [],
-      "acceptance_ids": []
+      "evidence": [
+        "实现与测试已进入 HEAD 6b48baba；npm test 48/48、typecheck、diff check 均通过。",
+        "执行期间外部流程改变 Git HEAD，原冻结基线不可继续用于完整验证。"
+      ],
+      "acceptance_ids": [
+        "AC-1"
+      ],
+      "claimed_at": "2026-08-18T11:21:32+08:00"
     },
-    "facts": null
-  }
+    "facts": {
+      "verified": false,
+      "verified_at": "2026-08-18T03:21:38Z",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "target": {
+        "mode": "snapshot",
+        "head": "6b48baba43d14176466843c4c407fb66910b1350",
+        "paths": {}
+      },
+      "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+      "targets": [
+        {
+          "verified": false,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+          "target": {
+            "mode": "snapshot",
+            "head": "6b48baba43d14176466843c4c407fb66910b1350",
+            "paths": {}
+          },
+          "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+          "changed_paths": [
+            ".dev-flow/config.json",
+            "src/App.tsx",
+            "src/librarySorting.ts",
+            "tests/librarySorting.test.ts"
+          ],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 4,
+            "added_lines": 1,
+            "deleted_lines": 1,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 4,
+            "added_lines": 1,
+            "deleted_lines": 1
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1579,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 3894,
+              "stdout_sha256": "297807930c246ea672a1ba220131d49d53548538f19669a1547b4254b9fd0ea6",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 274,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.5,
+            "added_lines": 0.0005,
+            "deleted_lines": 0.01
+          },
+          "warnings": [],
+          "failures": [
+            "Git HEAD changed after the execution baseline was captured"
+          ],
+          "failure_details": [
+            {
+              "id": "6fc02b54310c5132",
+              "code": "head_changed",
+              "message": "Git HEAD changed after the execution baseline was captured",
+              "project": "my.document",
+              "waivable": false
+            }
+          ]
+        }
+      ],
+      "changed_paths": [
+        ".dev-flow/config.json",
+        "src/App.tsx",
+        "src/librarySorting.ts",
+        "tests/librarySorting.test.ts"
+      ],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 4,
+        "added_lines": 1,
+        "deleted_lines": 1,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 4,
+        "added_lines": 1,
+        "deleted_lines": 1
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1579,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 3894,
+          "stdout_sha256": "297807930c246ea672a1ba220131d49d53548538f19669a1547b4254b9fd0ea6",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 274,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.5,
+        "added_lines": 0.0005,
+        "deleted_lines": 0.01
+      },
+      "warnings": [],
+      "failures": [
+        "Git HEAD changed after the execution baseline was captured"
+      ],
+      "failure_details": [
+        {
+          "id": "6fc02b54310c5132",
+          "code": "head_changed",
+          "message": "Git HEAD changed after the execution baseline was captured",
+          "project": "my.document",
+          "waivable": false
+        }
+      ],
+      "completion_claimed": false,
+      "observed_final_status": "partial",
+      "facts_digest": "93bb9829209051ca6150e069c1e6ef76c93c5b61a802f5c6abfd129683900811"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 4,
+      "added_lines": 1,
+      "deleted_lines": 1,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 1,
+    "work_tokens": 24634,
+    "work_tokens_per_acceptance": 24634.0,
+    "work_tokens_per_verified_line": 12317.0,
+    "seconds_per_acceptance": 118.0,
+    "context_replay_ratio": 0.9723494568859131,
+    "repair_work_tokens": 13090,
+    "repair_cost_ratio": 0.5313793943330356,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 8.694,
+    "verification_time_ratio": 0.07367796610169491,
+    "first_verify_pass": false,
+    "attempt_count": 2
+  },
+  "harness_feedback": [
+    {
+      "type": "high-repair-cost",
+      "evidence": "首次验证后的修复成本占 53%",
+      "recommendation": "补足需求边界、真实调用链或验收输入，减少首次实现后的返工",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "repair_tokens": 13090
+    }
+  ]
 }

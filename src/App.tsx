@@ -38,13 +38,17 @@ import {
 } from "lucide-react";
 import { AnimatePresence, LazyMotion, domMax, m, useReducedMotion } from "framer-motion";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import type { Options as ReactMarkdownOptions } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { markdownHighlightOptions, rehypeHighlight } from "./markdownHighlighting";
 import {
   Component,
   createContext,
   lazy,
+  memo,
+  startTransition,
   Suspense,
   use,
   useCallback,
@@ -84,6 +88,7 @@ import type {
   LibraryUploadResponse,
   SortMode
 } from "./types";
+import { mergeLibraryResponse } from "./libraryRefresh";
 import { compareItemsByModifiedTime, groupItemsByTopic } from "./librarySorting";
 import { MarkdownPre } from "./MermaidDiagram";
 
@@ -271,7 +276,11 @@ const READER_OUTLINE_MARGIN = 8;
 const READER_OUTLINE_MIN_PANEL_HEIGHT = 160;
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const;
 const OPERATION_TIP_DURATION_MS = 1_200;
-const MARKDOWN_REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize];
+const MARKDOWN_REHYPE_PLUGINS: NonNullable<ReactMarkdownOptions["rehypePlugins"]> = [
+  rehypeRaw,
+  rehypeSanitize,
+  [rehypeHighlight, markdownHighlightOptions]
+];
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
 const MARKDOWN_COMPONENTS = { pre: MarkdownPre };
 
@@ -1511,10 +1520,18 @@ function useLibrary() {
       if (!response.ok) {
         throw new Error(`索引读取失败：${response.status}`);
       }
-      setLibrary(await readJsonResponse<LibraryResponse>(
+      const nextLibrary = await readJsonResponse<LibraryResponse>(
         response,
         "索引接口未就绪，请使用 npm run dev 启动本地服务"
-      ));
+      );
+      const updateLibrary = () => {
+        setLibrary((current) => mergeLibraryResponse(current, nextLibrary));
+      };
+      if (hasLoadedLibraryRef.current) {
+        startTransition(updateLibrary);
+      } else {
+        updateLibrary();
+      }
       hasLoadedLibraryRef.current = true;
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "索引读取失败");
@@ -4354,9 +4371,10 @@ function ReaderPane({
       ) : null}
       {item.kind === "html" && htmlPreviewSource && !editorError ? (
         <HtmlRichPreview
-          item={item}
+          fileUrl={item.url}
           isEditing={readerMode === "edit"}
           source={htmlPreviewSource}
+          title={item.title}
           onChange={updateEditorContent}
           onOutlineChange={setHtmlOutline}
           outlineScrollRequest={htmlOutlineScrollRequest}
@@ -5363,7 +5381,7 @@ function ReaderControls(props: ReaderControlsProps) {
   );
 }
 
-function ReaderSurface({ item }: { item: LibraryItem }) {
+const ReaderSurface = memo(function ReaderSurface({ item }: { item: LibraryItem }) {
   if (item.kind === "html") {
     return (
       <iframe
@@ -5421,9 +5439,9 @@ function ReaderSurface({ item }: { item: LibraryItem }) {
       </div>
     </div>
   );
-}
+});
 
-const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
+export const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 (() => {
   let editing = false;
 
@@ -5478,6 +5496,7 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
     root.contentEditable = editing ? 'true' : 'false';
     root.spellcheck = editing;
     root.toggleAttribute('data-document-gallery-editing', editing);
+    if (editing) root.focus({ preventScroll: true });
   };
 
   document.addEventListener('click', (event) => {
@@ -5511,7 +5530,7 @@ const HTML_EDITOR_BRIDGE = `<script data-document-gallery-editor-bridge>
 })();
 </script>`;
 
-function stripDocumentGalleryEditingState(source: string) {
+export function stripDocumentGalleryEditingState(source: string) {
   return source.replace(/<(body|main)\b([^>]*)>/gi, (_match, tagName: string, attributes: string) => {
     const hasDocumentGalleryState = /\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/i.test(attributes);
     let cleanedAttributes = attributes.replace(/\sdata-document-gallery-editing(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, "");
@@ -5529,8 +5548,8 @@ function escapeHtmlAttribute(value: string) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
-function createEditableHtmlDocument(source: string, fileUrl: string) {
-  const baseTag = `<base data-document-gallery-editor-base href="${escapeHtmlAttribute(new URL(fileUrl, window.location.origin).href)}">`;
+export function createEditableHtmlDocument(source: string, fileUrl: string, origin = window.location.origin) {
+  const baseTag = `<base data-document-gallery-editor-base href="${escapeHtmlAttribute(new URL(fileUrl, origin).href)}">`;
   const withBase = /<head\b[^>]*>/i.test(source)
     ? source.replace(/<head\b[^>]*>/i, (tag) => `${tag}${baseTag}`)
     : `${baseTag}${source}`;
@@ -5540,25 +5559,27 @@ function createEditableHtmlDocument(source: string, fileUrl: string) {
 }
 
 function HtmlRichPreview({
-  item,
+  fileUrl,
   isEditing,
   onChange,
   onOutlineChange,
   onRequestContextMenu,
   outlineScrollRequest,
-  source
+  source,
+  title
 }: {
-  item: LibraryItem;
+  fileUrl: string;
   isEditing: boolean;
   onChange: (content: string) => void;
   onOutlineChange: (outline: ReaderOutlineItem[]) => void;
   onRequestContextMenu: (clientX: number, clientY: number) => void;
   outlineScrollRequest: ReaderOutlineScrollRequest | null;
   source: string;
+  title: string;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const emitContentChange = useEffectEvent(onChange);
-  const sourceDocument = useMemo(() => createEditableHtmlDocument(source, item.url), [item.url, source]);
+  const sourceDocument = useMemo(() => createEditableHtmlDocument(source, fileUrl), [fileUrl, source]);
   const setEditingMode = useCallback(() => {
     frameRef.current?.contentWindow?.postMessage({
       type: "document-gallery-html-mode",
@@ -5645,7 +5666,7 @@ function HtmlRichPreview({
       data-editing={isEditing ? "true" : undefined}
       sandbox="allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts"
       srcDoc={sourceDocument}
-      title={item.title}
+      title={title}
       onLoad={() => {
         setEditingMode();
         requestOutline();

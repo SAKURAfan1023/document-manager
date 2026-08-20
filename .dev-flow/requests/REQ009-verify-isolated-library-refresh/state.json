@@ -1,0 +1,529 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ009",
+  "record_uid": "05776352-ae92-44ef-a6ae-715b855f7abc",
+  "slug": "verify-isolated-library-refresh",
+  "title": "复验已集成的资料库刷新隔离",
+  "status": "completed",
+  "task_index_in_initial_session": 9,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": "REQ008 实现已由外部流程自动提交并导致冻结 HEAD 漂移；需要从已集成的新 HEAD 独立复验。",
+  "follows_up": {
+    "type": "follows_up",
+    "record_id": "REQ008",
+    "record_uid": "dd556811-e4b6-470e-9108-33e1bf32dfca",
+    "project": "my.document",
+    "request_path": ".dev-flow/requests/REQ008-isolate-library-refresh/request.md",
+    "title": "隔离资料库刷新与当前阅读状态",
+    "status_at_link": "partial",
+    "reason": "REQ008 执行期间 Git HEAD 被外部自动提交改变，原验证基线不可用，但实现已进入新 HEAD。"
+  },
+  "started_at": "2026-08-18T11:21:48+08:00",
+  "updated_at": "2026-08-18T11:22:19+08:00",
+  "first_execution_started_at": "2026-08-18T11:21:55+08:00",
+  "latest_execution_started_at": "2026-08-18T11:21:55+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "5816fb84ebb9d737772433230e972a686bd4573a1ab76978707c8ea34d6425b2",
+  "frozen_request_digest": "5816fb84ebb9d737772433230e972a686bd4573a1ab76978707c8ea34d6425b2",
+  "request_frozen_at": "2026-08-18T11:21:55+08:00",
+  "ended_at": "2026-08-18T11:22:19+08:00",
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T11:21:48+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T03:21:38.419Z",
+        "usage": {
+          "input_tokens": 24968574,
+          "cached_input_tokens": 24245120,
+          "uncached_input_tokens": 723454,
+          "output_tokens": 97695,
+          "reasoning_output_tokens": 33538,
+          "total_tokens": 25066269
+        },
+        "tool_calls": 217,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T11:21:55+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T03:21:48.261Z",
+        "usage": {
+          "input_tokens": 25034921,
+          "cached_input_tokens": 24310272,
+          "uncached_input_tokens": 724649,
+          "output_tokens": 98153,
+          "reasoning_output_tokens": 33615,
+          "total_tokens": 25133074
+        },
+        "tool_calls": 218,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": "2026-08-18T11:22:19+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T03:22:08.155Z",
+        "usage": {
+          "input_tokens": 25169610,
+          "cached_input_tokens": 24442624,
+          "uncached_input_tokens": 726986,
+          "output_tokens": 98707,
+          "reasoning_output_tokens": 33675,
+          "total_tokens": 25268317
+        },
+        "tool_calls": 220,
+        "rollout_available": true
+      }
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [
+    {
+      "status": "completed",
+      "ended_at": "2026-08-18T11:22:19+08:00",
+      "segment_index": 1,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T03:21:56Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "Verify Driver passed on HEAD 6b48baba; 48 tests and typecheck passed."
+            ],
+            "acceptance_ids": [
+              "AC-1"
+            ],
+            "claimed_at": "2026-08-18T03:22:14Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-18T03:22:19Z",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "target": {
+              "mode": "snapshot",
+              "head": "6b48baba43d14176466843c4c407fb66910b1350",
+              "paths": {}
+            },
+            "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "6b48baba43d14176466843c4c407fb66910b1350",
+                  "paths": {}
+                },
+                "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+                "changed_paths": [],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 0,
+                  "added_lines": 0,
+                  "deleted_lines": 0,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 0,
+                  "added_lines": 0,
+                  "deleted_lines": 0
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1370,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3661,
+                    "stdout_sha256": "3f16c8a756ddfe6ce2f4545ad2de087806d8f14c1654b5026db06e8bcdebb986",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 274,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.0,
+                  "added_lines": 0.0,
+                  "deleted_lines": 0.0
+                },
+                "warnings": [],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 0,
+              "added_lines": 0,
+              "deleted_lines": 0,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 0,
+              "added_lines": 0,
+              "deleted_lines": 0
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1370,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3661,
+                "stdout_sha256": "3f16c8a756ddfe6ce2f4545ad2de087806d8f14c1654b5026db06e8bcdebb986",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 274,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.0,
+              "added_lines": 0.0,
+              "deleted_lines": 0.0
+            },
+            "warnings": [],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "feb4b401422e4c3f36137d3c5a0ed9c12051d1d10f36e87285f1751deea74b2c"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 1,
+          "work_tokens": 2891,
+          "work_tokens_per_acceptance": 2891.0,
+          "work_tokens_per_verified_line": null,
+          "seconds_per_acceptance": 24.0,
+          "context_replay_ratio": 0.9826489171350296,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 7.647,
+          "verification_time_ratio": 0.318625,
+          "first_verify_pass": true,
+          "attempt_count": 2
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
+  "checkpoint": {
+    "completed": [],
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T03:21:56Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "6b48baba43d14176466843c4c407fb66910b1350",
+          "paths": {}
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T03:21:55Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "6b48baba43d14176466843c4c407fb66910b1350",
+      "paths": {}
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T03:21:55Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": true,
+      "evidence": [
+        "Verify Driver passed on HEAD 6b48baba; 48 tests and typecheck passed."
+      ],
+      "acceptance_ids": [
+        "AC-1"
+      ],
+      "claimed_at": "2026-08-18T03:22:14Z"
+    },
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-18T03:22:19Z",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "target": {
+        "mode": "snapshot",
+        "head": "6b48baba43d14176466843c4c407fb66910b1350",
+        "paths": {}
+      },
+      "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+          "target": {
+            "mode": "snapshot",
+            "head": "6b48baba43d14176466843c4c407fb66910b1350",
+            "paths": {}
+          },
+          "target_digest": "f6e1508f866f35daea0ef2d22dfa0e1adb95af7f2eae7fcb580c00639d13a1f8",
+          "changed_paths": [],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 0,
+            "added_lines": 0,
+            "deleted_lines": 0
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1370,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 3661,
+              "stdout_sha256": "3f16c8a756ddfe6ce2f4545ad2de087806d8f14c1654b5026db06e8bcdebb986",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 274,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.0,
+            "added_lines": 0.0,
+            "deleted_lines": 0.0
+          },
+          "warnings": [],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 0,
+        "added_lines": 0,
+        "deleted_lines": 0,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 0,
+        "added_lines": 0,
+        "deleted_lines": 0
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1370,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 3661,
+          "stdout_sha256": "3f16c8a756ddfe6ce2f4545ad2de087806d8f14c1654b5026db06e8bcdebb986",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 274,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.0,
+        "added_lines": 0.0,
+        "deleted_lines": 0.0
+      },
+      "warnings": [],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "feb4b401422e4c3f36137d3c5a0ed9c12051d1d10f36e87285f1751deea74b2c"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 0,
+      "added_lines": 0,
+      "deleted_lines": 0,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 1,
+    "work_tokens": 2891,
+    "work_tokens_per_acceptance": 2891.0,
+    "work_tokens_per_verified_line": null,
+    "seconds_per_acceptance": 24.0,
+    "context_replay_ratio": 0.9826489171350296,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 7.647,
+    "verification_time_ratio": 0.318625,
+    "first_verify_pass": true,
+    "attempt_count": 2
+  },
+  "harness_feedback": []
+}

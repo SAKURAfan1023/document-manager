@@ -1,0 +1,877 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ012",
+  "record_uid": "0fde6c50-5c3a-4228-b959-6ce9d0f1415c",
+  "slug": "render-markdown-code-colors",
+  "title": "恢复 Markdown 代码块颜色渲染",
+  "status": "completed",
+  "task_index_in_initial_session": 12,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": "当前反馈是独立的 Markdown 代码高亮缺陷，不能并入仍有历史状态的资料库刷新请求",
+  "follows_up": {
+    "type": "follows_up",
+    "record_id": "REQ011",
+    "record_uid": "5eb92035-2530-43d8-be97-8f334d7f29ce",
+    "project": "my.document",
+    "request_path": ".dev-flow/requests/REQ011-restore-html-editing-stability/request.md",
+    "title": "恢复 HTML 编辑并稳定编辑保存体验",
+    "status_at_link": "completed",
+    "reason": "用户在完成 HTML 编辑稳定性修复后继续反馈 Markdown 代码块缺少颜色渲染"
+  },
+  "started_at": "2026-08-19T17:43:50+08:00",
+  "updated_at": "2026-08-19T17:46:12+08:00",
+  "first_execution_started_at": "2026-08-19T17:43:56+08:00",
+  "latest_execution_started_at": "2026-08-19T17:43:56+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "9d9833357209805242f14ea46ec9e022b2495ea8e688b751bf667156abd8cfc0",
+  "frozen_request_digest": "9d9833357209805242f14ea46ec9e022b2495ea8e688b751bf667156abd8cfc0",
+  "request_frozen_at": "2026-08-19T17:43:56+08:00",
+  "ended_at": "2026-08-19T17:46:12+08:00",
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-19T17:43:50+08:00",
+      "baseline": {
+        "captured_at": "2026-08-19T09:43:39.777Z",
+        "usage": {
+          "input_tokens": 32168553,
+          "cached_input_tokens": 31123456,
+          "uncached_input_tokens": 1045097,
+          "output_tokens": 126872,
+          "reasoning_output_tokens": 44939,
+          "total_tokens": 32295425
+        },
+        "tool_calls": 272,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-19T17:43:56+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-19T09:43:50.401Z",
+        "usage": {
+          "input_tokens": 32210194,
+          "cached_input_tokens": 31164416,
+          "uncached_input_tokens": 1045778,
+          "output_tokens": 127317,
+          "reasoning_output_tokens": 44978,
+          "total_tokens": 32337511
+        },
+        "tool_calls": 273,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": "2026-08-19T17:46:12+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-19T09:45:56.226Z",
+        "usage": {
+          "input_tokens": 32855943,
+          "cached_input_tokens": 31785984,
+          "uncached_input_tokens": 1069959,
+          "output_tokens": 131996,
+          "reasoning_output_tokens": 46113,
+          "total_tokens": 32987939
+        },
+        "tool_calls": 286,
+        "rollout_available": true
+      }
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [
+    {
+      "status": "completed",
+      "ended_at": "2026-08-19T17:46:12+08:00",
+      "segment_index": 1,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-19T09:43:57Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "npm test: 6 files and 54 tests passed; npm run typecheck passed; diff and JSON regression tests assert hljs semantic token classes; Mermaid regression test passes with mermaid excluded from syntax highlighting"
+            ],
+            "acceptance_ids": [
+              "AC-1",
+              "AC-2",
+              "AC-3"
+            ],
+            "claimed_at": "2026-08-19T09:46:07Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-19T09:46:12Z",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "target": {
+              "mode": "snapshot",
+              "head": "6b48baba43d14176466843c4c407fb66910b1350",
+              "paths": {
+                "package-lock.json": {
+                  "status": " M",
+                  "index": "100644 7fb88501d41ed89cd80451e88c6b69ac3256f7f5 0\tpackage-lock.json",
+                  "kind": "file",
+                  "sha256": "741f957c1eafe033abc3e0f508c845954e15fe798268032c268377a422c01b43",
+                  "size": 257413
+                },
+                "package.json": {
+                  "status": " M",
+                  "index": "100644 13764b9cf89acb9f71b498ca8988fd57128ada3a 0\tpackage.json",
+                  "kind": "file",
+                  "sha256": "7b4062e5f4205ebdb0e5ca657620dc6dddd82a082bd067b50901e8f247077ec5",
+                  "size": 951
+                },
+                "src/App.tsx": {
+                  "status": " M",
+                  "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                  "kind": "file",
+                  "sha256": "f2f647043e0a57e1ca7038ce9e3a6a87b09b76dfe32c7fd6665f0c298110502d",
+                  "size": 198799
+                },
+                "src/styles.css": {
+                  "status": " M",
+                  "index": "100644 136d49e4b3fbf6d4f00c7e5d9c05dabc4e032eed 0\tsrc/styles.css",
+                  "kind": "file",
+                  "sha256": "902fbb7fef263b52bd31b0d14e721b2a2e378d420b6a1161d223c3088aaa9fa6",
+                  "size": 63090
+                },
+                "tests/markdown.test.ts": {
+                  "status": " M",
+                  "index": "100644 e75c41a31160df5dd58ea4c35cfffe166aedc59e 0\ttests/markdown.test.ts",
+                  "kind": "file",
+                  "sha256": "bd872cafdd15701031dd2dd71f01608351c6fcef470c1633d9cf72abd0217a79",
+                  "size": 3208
+                },
+                "src/libraryRefresh.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                  "size": 2371
+                },
+                "src/markdownHighlighting.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "b3d0286d52f9d017dd4b6811c18c6fb0d51da7889e348da6431810f649651c04",
+                  "size": 148
+                },
+                "tests/htmlEditing.test.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+                  "size": 1147
+                },
+                "tests/libraryRefresh.test.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                  "size": 2535
+                }
+              }
+            },
+            "target_digest": "6eaf0487a087d708616968dd4428ec1a578029fbdad69d17367724458c1e52fb",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "6b48baba43d14176466843c4c407fb66910b1350",
+                  "paths": {
+                    "package-lock.json": {
+                      "status": " M",
+                      "index": "100644 7fb88501d41ed89cd80451e88c6b69ac3256f7f5 0\tpackage-lock.json",
+                      "kind": "file",
+                      "sha256": "741f957c1eafe033abc3e0f508c845954e15fe798268032c268377a422c01b43",
+                      "size": 257413
+                    },
+                    "package.json": {
+                      "status": " M",
+                      "index": "100644 13764b9cf89acb9f71b498ca8988fd57128ada3a 0\tpackage.json",
+                      "kind": "file",
+                      "sha256": "7b4062e5f4205ebdb0e5ca657620dc6dddd82a082bd067b50901e8f247077ec5",
+                      "size": 951
+                    },
+                    "src/App.tsx": {
+                      "status": " M",
+                      "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                      "kind": "file",
+                      "sha256": "f2f647043e0a57e1ca7038ce9e3a6a87b09b76dfe32c7fd6665f0c298110502d",
+                      "size": 198799
+                    },
+                    "src/styles.css": {
+                      "status": " M",
+                      "index": "100644 136d49e4b3fbf6d4f00c7e5d9c05dabc4e032eed 0\tsrc/styles.css",
+                      "kind": "file",
+                      "sha256": "902fbb7fef263b52bd31b0d14e721b2a2e378d420b6a1161d223c3088aaa9fa6",
+                      "size": 63090
+                    },
+                    "tests/markdown.test.ts": {
+                      "status": " M",
+                      "index": "100644 e75c41a31160df5dd58ea4c35cfffe166aedc59e 0\ttests/markdown.test.ts",
+                      "kind": "file",
+                      "sha256": "bd872cafdd15701031dd2dd71f01608351c6fcef470c1633d9cf72abd0217a79",
+                      "size": 3208
+                    },
+                    "src/libraryRefresh.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                      "size": 2371
+                    },
+                    "src/markdownHighlighting.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "b3d0286d52f9d017dd4b6811c18c6fb0d51da7889e348da6431810f649651c04",
+                      "size": 148
+                    },
+                    "tests/htmlEditing.test.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+                      "size": 1147
+                    },
+                    "tests/libraryRefresh.test.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                      "size": 2535
+                    }
+                  }
+                },
+                "target_digest": "6eaf0487a087d708616968dd4428ec1a578029fbdad69d17367724458c1e52fb",
+                "changed_paths": [
+                  "package-lock.json",
+                  "package.json",
+                  "src/App.tsx",
+                  "src/markdownHighlighting.ts",
+                  "src/styles.css",
+                  "tests/markdown.test.ts"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 6,
+                  "added_lines": 200,
+                  "deleted_lines": 2,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 6,
+                  "added_lines": 200,
+                  "deleted_lines": 2
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1560,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3845,
+                    "stdout_sha256": "88f972230ea9a08f2588c9745da04d745368467d0c61cbf14bbb5a8212c5fb2e",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 274,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.75,
+                  "added_lines": 0.1,
+                  "deleted_lines": 0.02
+                },
+                "warnings": [
+                  "changed_files reached 75% of its budget"
+                ],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [
+              "package-lock.json",
+              "package.json",
+              "src/App.tsx",
+              "src/markdownHighlighting.ts",
+              "src/styles.css",
+              "tests/markdown.test.ts"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 6,
+              "added_lines": 200,
+              "deleted_lines": 2,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 6,
+              "added_lines": 200,
+              "deleted_lines": 2
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1560,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3845,
+                "stdout_sha256": "88f972230ea9a08f2588c9745da04d745368467d0c61cbf14bbb5a8212c5fb2e",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 274,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.75,
+              "added_lines": 0.1,
+              "deleted_lines": 0.02
+            },
+            "warnings": [
+              "changed_files reached 75% of its budget"
+            ],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "e1c7d7b9845137e16b88ec2d52f0413c5f8ddef651161121aa6aefdc18fc27fb"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 6,
+            "added_lines": 200,
+            "deleted_lines": 2,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 3,
+          "work_tokens": 28860,
+          "work_tokens_per_acceptance": 9620.0,
+          "work_tokens_per_verified_line": 142.87128712871288,
+          "seconds_per_acceptance": 45.333333333333336,
+          "context_replay_ratio": 0.9625535618328483,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 5.846,
+          "verification_time_ratio": 0.04298529411764706,
+          "first_verify_pass": true,
+          "attempt_count": 1
+        },
+        "harness_feedback": [
+          {
+            "type": "diff-budget-pressure",
+            "evidence": "变更规模达到项目预算的 75%",
+            "recommendation": "检查是否过度设计；若规模确属必要，在执行前重新评审并校准边界",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "repair_tokens": 0
+          }
+        ],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
+  "checkpoint": {
+    "completed": [],
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-19T09:43:57Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "6b48baba43d14176466843c4c407fb66910b1350",
+          "paths": {
+            "src/App.tsx": {
+              "status": " M",
+              "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+              "kind": "file",
+              "sha256": "a82403f63066749a12931fb5c6ea1dcd7935ee8598903a1db5c8f5a2936b07e9",
+              "size": 198539
+            },
+            "src/libraryRefresh.ts": {
+              "status": "??",
+              "kind": "file",
+              "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+              "size": 2371
+            },
+            "tests/htmlEditing.test.ts": {
+              "status": "??",
+              "kind": "file",
+              "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+              "size": 1147
+            },
+            "tests/libraryRefresh.test.ts": {
+              "status": "??",
+              "kind": "file",
+              "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+              "size": 2535
+            }
+          }
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-19T09:43:57Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "6b48baba43d14176466843c4c407fb66910b1350",
+      "paths": {
+        "src/App.tsx": {
+          "status": " M",
+          "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+          "kind": "file",
+          "sha256": "a82403f63066749a12931fb5c6ea1dcd7935ee8598903a1db5c8f5a2936b07e9",
+          "size": 198539
+        },
+        "src/libraryRefresh.ts": {
+          "status": "??",
+          "kind": "file",
+          "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+          "size": 2371
+        },
+        "tests/htmlEditing.test.ts": {
+          "status": "??",
+          "kind": "file",
+          "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+          "size": 1147
+        },
+        "tests/libraryRefresh.test.ts": {
+          "status": "??",
+          "kind": "file",
+          "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+          "size": 2535
+        }
+      }
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-19T09:43:57Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": true,
+      "evidence": [
+        "npm test: 6 files and 54 tests passed; npm run typecheck passed; diff and JSON regression tests assert hljs semantic token classes; Mermaid regression test passes with mermaid excluded from syntax highlighting"
+      ],
+      "acceptance_ids": [
+        "AC-1",
+        "AC-2",
+        "AC-3"
+      ],
+      "claimed_at": "2026-08-19T09:46:07Z"
+    },
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-19T09:46:12Z",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "target": {
+        "mode": "snapshot",
+        "head": "6b48baba43d14176466843c4c407fb66910b1350",
+        "paths": {
+          "package-lock.json": {
+            "status": " M",
+            "index": "100644 7fb88501d41ed89cd80451e88c6b69ac3256f7f5 0\tpackage-lock.json",
+            "kind": "file",
+            "sha256": "741f957c1eafe033abc3e0f508c845954e15fe798268032c268377a422c01b43",
+            "size": 257413
+          },
+          "package.json": {
+            "status": " M",
+            "index": "100644 13764b9cf89acb9f71b498ca8988fd57128ada3a 0\tpackage.json",
+            "kind": "file",
+            "sha256": "7b4062e5f4205ebdb0e5ca657620dc6dddd82a082bd067b50901e8f247077ec5",
+            "size": 951
+          },
+          "src/App.tsx": {
+            "status": " M",
+            "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+            "kind": "file",
+            "sha256": "f2f647043e0a57e1ca7038ce9e3a6a87b09b76dfe32c7fd6665f0c298110502d",
+            "size": 198799
+          },
+          "src/styles.css": {
+            "status": " M",
+            "index": "100644 136d49e4b3fbf6d4f00c7e5d9c05dabc4e032eed 0\tsrc/styles.css",
+            "kind": "file",
+            "sha256": "902fbb7fef263b52bd31b0d14e721b2a2e378d420b6a1161d223c3088aaa9fa6",
+            "size": 63090
+          },
+          "tests/markdown.test.ts": {
+            "status": " M",
+            "index": "100644 e75c41a31160df5dd58ea4c35cfffe166aedc59e 0\ttests/markdown.test.ts",
+            "kind": "file",
+            "sha256": "bd872cafdd15701031dd2dd71f01608351c6fcef470c1633d9cf72abd0217a79",
+            "size": 3208
+          },
+          "src/libraryRefresh.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+            "size": 2371
+          },
+          "src/markdownHighlighting.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "b3d0286d52f9d017dd4b6811c18c6fb0d51da7889e348da6431810f649651c04",
+            "size": 148
+          },
+          "tests/htmlEditing.test.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+            "size": 1147
+          },
+          "tests/libraryRefresh.test.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+            "size": 2535
+          }
+        }
+      },
+      "target_digest": "6eaf0487a087d708616968dd4428ec1a578029fbdad69d17367724458c1e52fb",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+          "target": {
+            "mode": "snapshot",
+            "head": "6b48baba43d14176466843c4c407fb66910b1350",
+            "paths": {
+              "package-lock.json": {
+                "status": " M",
+                "index": "100644 7fb88501d41ed89cd80451e88c6b69ac3256f7f5 0\tpackage-lock.json",
+                "kind": "file",
+                "sha256": "741f957c1eafe033abc3e0f508c845954e15fe798268032c268377a422c01b43",
+                "size": 257413
+              },
+              "package.json": {
+                "status": " M",
+                "index": "100644 13764b9cf89acb9f71b498ca8988fd57128ada3a 0\tpackage.json",
+                "kind": "file",
+                "sha256": "7b4062e5f4205ebdb0e5ca657620dc6dddd82a082bd067b50901e8f247077ec5",
+                "size": 951
+              },
+              "src/App.tsx": {
+                "status": " M",
+                "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                "kind": "file",
+                "sha256": "f2f647043e0a57e1ca7038ce9e3a6a87b09b76dfe32c7fd6665f0c298110502d",
+                "size": 198799
+              },
+              "src/styles.css": {
+                "status": " M",
+                "index": "100644 136d49e4b3fbf6d4f00c7e5d9c05dabc4e032eed 0\tsrc/styles.css",
+                "kind": "file",
+                "sha256": "902fbb7fef263b52bd31b0d14e721b2a2e378d420b6a1161d223c3088aaa9fa6",
+                "size": 63090
+              },
+              "tests/markdown.test.ts": {
+                "status": " M",
+                "index": "100644 e75c41a31160df5dd58ea4c35cfffe166aedc59e 0\ttests/markdown.test.ts",
+                "kind": "file",
+                "sha256": "bd872cafdd15701031dd2dd71f01608351c6fcef470c1633d9cf72abd0217a79",
+                "size": 3208
+              },
+              "src/libraryRefresh.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                "size": 2371
+              },
+              "src/markdownHighlighting.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "b3d0286d52f9d017dd4b6811c18c6fb0d51da7889e348da6431810f649651c04",
+                "size": 148
+              },
+              "tests/htmlEditing.test.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "985b67f9bf15a0eb97f672f6b409853ead49339fc91aac71dca2761d7cb3dba7",
+                "size": 1147
+              },
+              "tests/libraryRefresh.test.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                "size": 2535
+              }
+            }
+          },
+          "target_digest": "6eaf0487a087d708616968dd4428ec1a578029fbdad69d17367724458c1e52fb",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json",
+            "src/App.tsx",
+            "src/markdownHighlighting.ts",
+            "src/styles.css",
+            "tests/markdown.test.ts"
+          ],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 6,
+            "added_lines": 200,
+            "deleted_lines": 2,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 6,
+            "added_lines": 200,
+            "deleted_lines": 2
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1560,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 3845,
+              "stdout_sha256": "88f972230ea9a08f2588c9745da04d745368467d0c61cbf14bbb5a8212c5fb2e",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 274,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.75,
+            "added_lines": 0.1,
+            "deleted_lines": 0.02
+          },
+          "warnings": [
+            "changed_files reached 75% of its budget"
+          ],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [
+        "package-lock.json",
+        "package.json",
+        "src/App.tsx",
+        "src/markdownHighlighting.ts",
+        "src/styles.css",
+        "tests/markdown.test.ts"
+      ],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 6,
+        "added_lines": 200,
+        "deleted_lines": 2,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 6,
+        "added_lines": 200,
+        "deleted_lines": 2
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1560,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 3845,
+          "stdout_sha256": "88f972230ea9a08f2588c9745da04d745368467d0c61cbf14bbb5a8212c5fb2e",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 274,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.75,
+        "added_lines": 0.1,
+        "deleted_lines": 0.02
+      },
+      "warnings": [
+        "changed_files reached 75% of its budget"
+      ],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "e1c7d7b9845137e16b88ec2d52f0413c5f8ddef651161121aa6aefdc18fc27fb"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 6,
+      "added_lines": 200,
+      "deleted_lines": 2,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 3,
+    "work_tokens": 28860,
+    "work_tokens_per_acceptance": 9620.0,
+    "work_tokens_per_verified_line": 142.87128712871288,
+    "seconds_per_acceptance": 45.333333333333336,
+    "context_replay_ratio": 0.9625535618328483,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 5.846,
+    "verification_time_ratio": 0.04298529411764706,
+    "first_verify_pass": true,
+    "attempt_count": 1
+  },
+  "harness_feedback": [
+    {
+      "type": "diff-budget-pressure",
+      "evidence": "变更规模达到项目预算的 75%",
+      "recommendation": "检查是否过度设计；若规模确属必要，在执行前重新评审并校准边界",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "repair_tokens": 0
+    }
+  ]
+}

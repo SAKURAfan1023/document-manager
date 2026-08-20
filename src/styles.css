@@ -2879,8 +2879,72 @@ a {
 
 .markdown-preview pre code {
   background: transparent;
+  color: var(--ink);
   padding: 0;
   font-size: inherit;
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-type {
+  color: oklch(44% 0.16 330);
+}
+
+.markdown-preview .hljs-attr,
+.markdown-preview .hljs-attribute,
+.markdown-preview .hljs-property {
+  color: oklch(42% 0.13 255);
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-regexp,
+.markdown-preview .hljs-template-variable {
+  color: oklch(42% 0.11 145);
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-symbol,
+.markdown-preview .hljs-bullet {
+  color: oklch(48% 0.15 60);
+}
+
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-section,
+.markdown-preview .hljs-function {
+  color: oklch(43% 0.11 205);
+}
+
+.markdown-preview .hljs-meta,
+.markdown-preview .hljs-built_in,
+.markdown-preview .hljs-variable {
+  color: oklch(45% 0.1 25);
+}
+
+.markdown-preview .hljs-addition {
+  border-radius: 3px;
+  background: oklch(94% 0.045 145 / 72%);
+  color: oklch(38% 0.12 145);
+}
+
+.markdown-preview .hljs-deletion {
+  border-radius: 3px;
+  background: oklch(95% 0.04 25 / 72%);
+  color: oklch(45% 0.16 25);
+}
+
+.markdown-preview .hljs-emphasis {
+  font-style: italic;
+}
+
+.markdown-preview .hljs-strong {
+  font-weight: 700;
 }
 
 .markdown-preview .mermaid-diagram {

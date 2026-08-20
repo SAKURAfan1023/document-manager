@@ -1,0 +1,627 @@
+{
+  "schema_version": 3,
+  "record_id": "REQ010",
+  "record_uid": "6135571e-d6f7-4f38-ae42-12e7310a2a5b",
+  "slug": "stabilize-index-refresh-visuals",
+  "title": "稳定索引刷新期间的阅读位置",
+  "status": "completed",
+  "task_index_in_initial_session": 10,
+  "project": "my.document",
+  "targets": [
+    {
+      "project": "my.document",
+      "path": ".",
+      "branch_at_start": "main"
+    }
+  ],
+  "branch_at_start": "main",
+  "initial_session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+  "separate_task_reason": "REQ006 与 REQ008 已终止且分别由 REQ007、REQ009 接续；本任务是用户在已完成 REQ009 后新增的视觉稳定性要求。",
+  "follows_up": {
+    "type": "follows_up",
+    "record_id": "REQ009",
+    "record_uid": "05776352-ae92-44ef-a6ae-715b855f7abc",
+    "project": "my.document",
+    "request_path": ".dev-flow/requests/REQ009-verify-isolated-library-refresh/request.md",
+    "title": "复验已集成的资料库刷新隔离",
+    "status_at_link": "completed",
+    "reason": "用户进一步要求索引本身的刷新也不能造成可见跳动，需要在上一轮整页重载隔离基础上继续收窄 React 更新范围。"
+  },
+  "started_at": "2026-08-18T11:25:20+08:00",
+  "updated_at": "2026-08-18T11:26:53+08:00",
+  "first_execution_started_at": "2026-08-18T11:25:26+08:00",
+  "latest_execution_started_at": "2026-08-18T11:25:26+08:00",
+  "latest_execution_basis": "request",
+  "request_digest": "39db57bc94105ef4cd261ca65588cf2a32aec9cb0ad9157dd410a5f9cbb812d2",
+  "frozen_request_digest": "39db57bc94105ef4cd261ca65588cf2a32aec9cb0ad9157dd410a5f9cbb812d2",
+  "request_frozen_at": "2026-08-18T11:25:26+08:00",
+  "ended_at": "2026-08-18T11:26:53+08:00",
+  "phase": "execution",
+  "segments": [
+    {
+      "segment_index": 1,
+      "kind": "initial",
+      "reason": null,
+      "session_id": "01a0127e-c870-7193-885e-4c0b070536ee",
+      "phase_at_start": "planning",
+      "started_at": "2026-08-18T11:25:20+08:00",
+      "baseline": {
+        "captured_at": "2026-08-18T03:25:09.759Z",
+        "usage": {
+          "input_tokens": 26777410,
+          "cached_input_tokens": 25992576,
+          "uncached_input_tokens": 784834,
+          "output_tokens": 106393,
+          "reasoning_output_tokens": 36771,
+          "total_tokens": 26883803
+        },
+        "tool_calls": 236,
+        "rollout_available": true
+      },
+      "execution_started_at": "2026-08-18T11:25:26+08:00",
+      "execution_start_snapshot": {
+        "captured_at": "2026-08-18T03:25:20.397Z",
+        "usage": {
+          "input_tokens": 26894071,
+          "cached_input_tokens": 26106880,
+          "uncached_input_tokens": 787191,
+          "output_tokens": 106887,
+          "reasoning_output_tokens": 36795,
+          "total_tokens": 27000958
+        },
+        "tool_calls": 237,
+        "rollout_available": true
+      },
+      "execution_basis": "request",
+      "ended_at": "2026-08-18T11:26:53+08:00",
+      "end_snapshot": {
+        "captured_at": "2026-08-18T03:26:39.833Z",
+        "usage": {
+          "input_tokens": 27492510,
+          "cached_input_tokens": 26697856,
+          "uncached_input_tokens": 794654,
+          "output_tokens": 110394,
+          "reasoning_output_tokens": 37205,
+          "total_tokens": 27602904
+        },
+        "tool_calls": 242,
+        "rollout_available": true
+      }
+    }
+  ],
+  "current_run_started_segment_index": 1,
+  "finalizations": [
+    {
+      "status": "completed",
+      "ended_at": "2026-08-18T11:26:53+08:00",
+      "segment_index": 1,
+      "verified": true,
+      "result": {
+        "verification": {
+          "prepared_at": "2026-08-18T03:25:26Z",
+          "claims": {
+            "done": true,
+            "evidence": [
+              "mergeLibraryResponse 复用未变化文件和目录分支；后续刷新使用 startTransition；ReaderSurface 与 HtmlRichPreview memo 化。",
+              "npm test: 5 files / 50 tests passed；npm run typecheck passed；git diff --check passed。"
+            ],
+            "acceptance_ids": [
+              "AC-1"
+            ],
+            "claimed_at": "2026-08-18T03:26:47Z"
+          },
+          "facts": {
+            "verified": true,
+            "verified_at": "2026-08-18T03:26:52Z",
+            "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+            "target": {
+              "mode": "snapshot",
+              "head": "6b48baba43d14176466843c4c407fb66910b1350",
+              "paths": {
+                "src/App.tsx": {
+                  "status": " M",
+                  "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                  "kind": "file",
+                  "sha256": "852b5a37f6b8be71c41b80cf93c675b01fa2fbb6fce9fc88cbcdc0fca541036c",
+                  "size": 198422
+                },
+                "src/libraryRefresh.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                  "size": 2371
+                },
+                "tests/libraryRefresh.test.ts": {
+                  "status": "??",
+                  "kind": "file",
+                  "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                  "size": 2535
+                }
+              }
+            },
+            "target_digest": "3bac2ea1164cf8e41b9a8b5560a3e91b6b71e0fbb637f19742e16935edb14bee",
+            "targets": [
+              {
+                "verified": true,
+                "project": "my.document",
+                "path": ".",
+                "branch": "main",
+                "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+                "target": {
+                  "mode": "snapshot",
+                  "head": "6b48baba43d14176466843c4c407fb66910b1350",
+                  "paths": {
+                    "src/App.tsx": {
+                      "status": " M",
+                      "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                      "kind": "file",
+                      "sha256": "852b5a37f6b8be71c41b80cf93c675b01fa2fbb6fce9fc88cbcdc0fca541036c",
+                      "size": 198422
+                    },
+                    "src/libraryRefresh.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                      "size": 2371
+                    },
+                    "tests/libraryRefresh.test.ts": {
+                      "status": "??",
+                      "kind": "file",
+                      "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                      "size": 2535
+                    }
+                  }
+                },
+                "target_digest": "3bac2ea1164cf8e41b9a8b5560a3e91b6b71e0fbb637f19742e16935edb14bee",
+                "changed_paths": [
+                  "src/App.tsx",
+                  "src/libraryRefresh.ts",
+                  "tests/libraryRefresh.test.ts"
+                ],
+                "boundary": {
+                  "frozen": [],
+                  "outside": []
+                },
+                "diff": {
+                  "changed_files": 3,
+                  "added_lines": 160,
+                  "deleted_lines": 6,
+                  "binary_files": 0,
+                  "binary_bytes_delta": 0,
+                  "attribution": "exact"
+                },
+                "diff_size": {
+                  "changed_files": 3,
+                  "added_lines": 160,
+                  "deleted_lines": 6
+                },
+                "checks": [
+                  {
+                    "id": "typecheck",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "run",
+                      "typecheck"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 1482,
+                    "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 58,
+                    "stderr_bytes": 0
+                  },
+                  {
+                    "id": "tests",
+                    "required": true,
+                    "argv": [
+                      "npm",
+                      "test"
+                    ],
+                    "exit_code": 0,
+                    "timed_out": false,
+                    "duration_ms": 3684,
+                    "stdout_sha256": "64925e2947193912cbeaf8f1937f5180f8bfc8fd3f41d2d1d7dd0cd8a08fa7b1",
+                    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    "stdout_bytes": 274,
+                    "stderr_bytes": 0
+                  }
+                ],
+                "diff_budget_ratios": {
+                  "changed_files": 0.375,
+                  "added_lines": 0.08,
+                  "deleted_lines": 0.06
+                },
+                "warnings": [],
+                "failures": [],
+                "failure_details": []
+              }
+            ],
+            "changed_paths": [
+              "src/App.tsx",
+              "src/libraryRefresh.ts",
+              "tests/libraryRefresh.test.ts"
+            ],
+            "boundary": {
+              "frozen": [],
+              "outside": []
+            },
+            "diff": {
+              "changed_files": 3,
+              "added_lines": 160,
+              "deleted_lines": 6,
+              "binary_files": 0,
+              "binary_bytes_delta": 0,
+              "attribution": "exact"
+            },
+            "diff_size": {
+              "changed_files": 3,
+              "added_lines": 160,
+              "deleted_lines": 6
+            },
+            "checks": [
+              {
+                "id": "typecheck",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "run",
+                  "typecheck"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 1482,
+                "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 58,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "typecheck"
+              },
+              {
+                "id": "tests",
+                "required": true,
+                "argv": [
+                  "npm",
+                  "test"
+                ],
+                "exit_code": 0,
+                "timed_out": false,
+                "duration_ms": 3684,
+                "stdout_sha256": "64925e2947193912cbeaf8f1937f5180f8bfc8fd3f41d2d1d7dd0cd8a08fa7b1",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stdout_bytes": 274,
+                "stderr_bytes": 0,
+                "project": "my.document",
+                "check_id": "tests"
+              }
+            ],
+            "diff_budget_ratios": {
+              "changed_files": 0.375,
+              "added_lines": 0.08,
+              "deleted_lines": 0.06
+            },
+            "warnings": [],
+            "failures": [],
+            "failure_details": [],
+            "facts_digest": "ebca893fcff471dfc5aba6d155c5f8298738e3a79b994d4e98f9a0f024aa8871"
+          }
+        },
+        "economics": {
+          "diff": {
+            "changed_files": 3,
+            "added_lines": 160,
+            "deleted_lines": 6,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "acceptance_count": 1,
+          "work_tokens": 10970,
+          "work_tokens_per_acceptance": 10970.0,
+          "work_tokens_per_verified_line": 66.08433734939759,
+          "seconds_per_acceptance": 87.0,
+          "context_replay_ratio": 0.9875292218588695,
+          "repair_work_tokens": 0,
+          "repair_cost_ratio": 0.0,
+          "repeated_failure_waste_ratio": 0.0,
+          "verification_seconds": 5.361,
+          "verification_time_ratio": 0.06162068965517241,
+          "first_verify_pass": true,
+          "attempt_count": 1
+        },
+        "harness_feedback": [],
+        "checkpoint": {
+          "completed": [],
+          "verified": [
+            "Verify Driver 通过 2 项项目检查。"
+          ],
+          "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+          "blocker": null,
+          "must_check": [
+            "确认项目、分支和工作区仍与记录一致。"
+          ],
+          "blocker_kind": null
+        }
+      }
+    }
+  ],
+  "checkpoint": {
+    "completed": [],
+    "verified": [
+      "Verify Driver 通过 2 项项目检查。"
+    ],
+    "next_step": "任务已通过产出门禁；如有新增或变化的工作，创建 follows_up REQ。",
+    "blocker": null,
+    "must_check": [
+      "确认项目、分支和工作区仍与记录一致。"
+    ],
+    "blocker_kind": null
+  },
+  "verification": {
+    "required": true,
+    "prepared_at": "2026-08-18T03:25:26Z",
+    "targets": [
+      {
+        "project": "my.document",
+        "path": ".",
+        "branch": "main",
+        "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+        "target_mode": "snapshot",
+        "baseline": {
+          "head": "6b48baba43d14176466843c4c407fb66910b1350",
+          "paths": {}
+        },
+        "content_baseline": {
+          "captured_at": "2026-08-18T03:25:26Z",
+          "exact": true,
+          "reasons": []
+        }
+      }
+    ],
+    "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+    "target_mode": "snapshot",
+    "baseline": {
+      "head": "6b48baba43d14176466843c4c407fb66910b1350",
+      "paths": {}
+    },
+    "content_baseline": {
+      "captured_at": "2026-08-18T03:25:26Z",
+      "exact": true,
+      "reasons": []
+    },
+    "claims": {
+      "done": true,
+      "evidence": [
+        "mergeLibraryResponse 复用未变化文件和目录分支；后续刷新使用 startTransition；ReaderSurface 与 HtmlRichPreview memo 化。",
+        "npm test: 5 files / 50 tests passed；npm run typecheck passed；git diff --check passed。"
+      ],
+      "acceptance_ids": [
+        "AC-1"
+      ],
+      "claimed_at": "2026-08-18T03:26:47Z"
+    },
+    "facts": {
+      "verified": true,
+      "verified_at": "2026-08-18T03:26:52Z",
+      "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+      "target": {
+        "mode": "snapshot",
+        "head": "6b48baba43d14176466843c4c407fb66910b1350",
+        "paths": {
+          "src/App.tsx": {
+            "status": " M",
+            "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+            "kind": "file",
+            "sha256": "852b5a37f6b8be71c41b80cf93c675b01fa2fbb6fce9fc88cbcdc0fca541036c",
+            "size": 198422
+          },
+          "src/libraryRefresh.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+            "size": 2371
+          },
+          "tests/libraryRefresh.test.ts": {
+            "status": "??",
+            "kind": "file",
+            "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+            "size": 2535
+          }
+        }
+      },
+      "target_digest": "3bac2ea1164cf8e41b9a8b5560a3e91b6b71e0fbb637f19742e16935edb14bee",
+      "targets": [
+        {
+          "verified": true,
+          "project": "my.document",
+          "path": ".",
+          "branch": "main",
+          "config_hash": "1bd14eafc7edc75c6e0dcec95c1482fdf99f403329baa1dc535c854210fa2849",
+          "target": {
+            "mode": "snapshot",
+            "head": "6b48baba43d14176466843c4c407fb66910b1350",
+            "paths": {
+              "src/App.tsx": {
+                "status": " M",
+                "index": "100644 fada49c7c4a7b863e376a2cd3d149d28cf1a2652 0\tsrc/App.tsx",
+                "kind": "file",
+                "sha256": "852b5a37f6b8be71c41b80cf93c675b01fa2fbb6fce9fc88cbcdc0fca541036c",
+                "size": 198422
+              },
+              "src/libraryRefresh.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "ca4db98bd8d24b89381a8222e7faa6750147c98ff9f3e19f9d40fe5afba0f942",
+                "size": 2371
+              },
+              "tests/libraryRefresh.test.ts": {
+                "status": "??",
+                "kind": "file",
+                "sha256": "7ca7e7ddf271586314e0ee63d1813fac88f8730e3e09e308e24f7236d40fe35e",
+                "size": 2535
+              }
+            }
+          },
+          "target_digest": "3bac2ea1164cf8e41b9a8b5560a3e91b6b71e0fbb637f19742e16935edb14bee",
+          "changed_paths": [
+            "src/App.tsx",
+            "src/libraryRefresh.ts",
+            "tests/libraryRefresh.test.ts"
+          ],
+          "boundary": {
+            "frozen": [],
+            "outside": []
+          },
+          "diff": {
+            "changed_files": 3,
+            "added_lines": 160,
+            "deleted_lines": 6,
+            "binary_files": 0,
+            "binary_bytes_delta": 0,
+            "attribution": "exact"
+          },
+          "diff_size": {
+            "changed_files": 3,
+            "added_lines": 160,
+            "deleted_lines": 6
+          },
+          "checks": [
+            {
+              "id": "typecheck",
+              "required": true,
+              "argv": [
+                "npm",
+                "run",
+                "typecheck"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 1482,
+              "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 58,
+              "stderr_bytes": 0
+            },
+            {
+              "id": "tests",
+              "required": true,
+              "argv": [
+                "npm",
+                "test"
+              ],
+              "exit_code": 0,
+              "timed_out": false,
+              "duration_ms": 3684,
+              "stdout_sha256": "64925e2947193912cbeaf8f1937f5180f8bfc8fd3f41d2d1d7dd0cd8a08fa7b1",
+              "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stdout_bytes": 274,
+              "stderr_bytes": 0
+            }
+          ],
+          "diff_budget_ratios": {
+            "changed_files": 0.375,
+            "added_lines": 0.08,
+            "deleted_lines": 0.06
+          },
+          "warnings": [],
+          "failures": [],
+          "failure_details": []
+        }
+      ],
+      "changed_paths": [
+        "src/App.tsx",
+        "src/libraryRefresh.ts",
+        "tests/libraryRefresh.test.ts"
+      ],
+      "boundary": {
+        "frozen": [],
+        "outside": []
+      },
+      "diff": {
+        "changed_files": 3,
+        "added_lines": 160,
+        "deleted_lines": 6,
+        "binary_files": 0,
+        "binary_bytes_delta": 0,
+        "attribution": "exact"
+      },
+      "diff_size": {
+        "changed_files": 3,
+        "added_lines": 160,
+        "deleted_lines": 6
+      },
+      "checks": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 1482,
+          "stdout_sha256": "7f326e00125b469fc985d960210fdb6bc0b4dec7c5aef1a2659f5a0bcb6126c7",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 58,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "typecheck"
+        },
+        {
+          "id": "tests",
+          "required": true,
+          "argv": [
+            "npm",
+            "test"
+          ],
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 3684,
+          "stdout_sha256": "64925e2947193912cbeaf8f1937f5180f8bfc8fd3f41d2d1d7dd0cd8a08fa7b1",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_bytes": 274,
+          "stderr_bytes": 0,
+          "project": "my.document",
+          "check_id": "tests"
+        }
+      ],
+      "diff_budget_ratios": {
+        "changed_files": 0.375,
+        "added_lines": 0.08,
+        "deleted_lines": 0.06
+      },
+      "warnings": [],
+      "failures": [],
+      "failure_details": [],
+      "facts_digest": "ebca893fcff471dfc5aba6d155c5f8298738e3a79b994d4e98f9a0f024aa8871"
+    }
+  },
+  "economics": {
+    "diff": {
+      "changed_files": 3,
+      "added_lines": 160,
+      "deleted_lines": 6,
+      "binary_files": 0,
+      "binary_bytes_delta": 0,
+      "attribution": "exact"
+    },
+    "acceptance_count": 1,
+    "work_tokens": 10970,
+    "work_tokens_per_acceptance": 10970.0,
+    "work_tokens_per_verified_line": 66.08433734939759,
+    "seconds_per_acceptance": 87.0,
+    "context_replay_ratio": 0.9875292218588695,
+    "repair_work_tokens": 0,
+    "repair_cost_ratio": 0.0,
+    "repeated_failure_waste_ratio": 0.0,
+    "verification_seconds": 5.361,
+    "verification_time_ratio": 0.06162068965517241,
+    "first_verify_pass": true,
+    "attempt_count": 1
+  },
+  "harness_feedback": []
+}
